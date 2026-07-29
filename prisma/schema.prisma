@@ -1,0 +1,880 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Rol {
+  SUPER_ADMIN
+  CONTADOR
+  LIQUIDADOR
+  ADMIN_CLIENTE
+  CONSULTA
+}
+
+enum TipoConvenio {
+  MENSUAL
+  QUINCENAL
+  JORNAL
+  HORA
+}
+
+enum TipoConcepto {
+  REMUNERATIVO
+  NO_REMUNERATIVO
+  DESCUENTO
+  APORTE_PATRONAL
+  CONTRIBUCION
+}
+
+enum EstadoWorkflow {
+  BORRADOR
+  VALIDANDO
+  CALCULANDO
+  GENERADO
+  REVISADO
+  APROBADO
+  PAGADO
+  EXPORTADO_AFIP
+  CERRADO
+}
+
+enum TipoLicencia {
+  ENFERMEDAD
+  ACCIDENTE
+  VACACIONES
+  MATERNIDAD
+  PATERNIDAD
+  SUSPENSION
+  OTRO
+}
+
+// ----------------------------------------------------
+// 0. MULTI-TENANT SAAS
+// ----------------------------------------------------
+model Tenant {
+  id                String            @id @default(uuid())
+  nombre            String
+  subdominio        String            @unique
+  estado            String            @default("ACTIVO")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  featureFlags      String            @default("[]")          
+
+  // Relaciones
+  usuarios          TenantUser[]
+  clientes          Cliente[]
+  sucursales        Sucursal[]
+  convenios         Convenio[]
+  sindicatos        Sindicato[]
+  obrasSociales     ObraSocial[]
+  escalas           EscalaSalarial[]
+  conceptos         Concepto[]
+  parametros        Parametro[]
+  empleados         Empleado[]
+  embargos          Embargo[]
+  vacaciones        Vacacion[]
+  calendarios       CalendarioLaboral[]
+  liquidaciones     Liquidacion[]
+  auditLogs         AuditLog[]
+  
+  // Back-relations para versiones que ahora tienen tenantId
+  clienteVersiones     ClienteVersion[]
+  convenioVersiones    ConvenioVersion[]
+  sindicatoVersiones   SindicatoVersion[]
+  obraSocialVersiones  ObraSocialVersion[]
+  parametroVersiones   ParametroVersion[]
+  conceptoVersiones    ConceptoVersion[]
+  empleadoVersiones    EmpleadoVersion[]
+  workflowLogs         WorkflowLog[]
+
+  @@index([subdominio])
+}
+
+model TenantUser {
+  id          String    @id @default(uuid())
+  tenantId    String
+  userId      String
+  rol         Rol       @default(LIQUIDADOR)
+  permisos    String            @default("[]")  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model User {
+  id            String       @id @default(uuid())
+  name          String?
+  email         String       @unique
+  passwordHash  String
+  mfaEnabled    Boolean      @default(false)
+  mfaSecret     String?
+  estado        String       @default("ACTIVO")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  tenants       TenantUser[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+}
+
+model Session {
+  id           String    @id @default(uuid())
+  userId       String
+  token        String    @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  revocada     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// ----------------------------------------------------
+// 1. EMPRESAS (Versionamiento Bi-Temporal)
+// ----------------------------------------------------
+model Cliente {
+  id                String            @id @default(uuid())
+  tenantId          String
+  cuit              String            
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id])
+  versiones         ClienteVersion[]
+  sucursales        Sucursal[]
+  documentos        DocumentoCliente[]
+  empleados         Empleado[]
+  liquidaciones     Liquidacion[]
+  recibosGenerados  ReciboSueldo[]
+
+  @@unique([tenantId, cuit])
+  @@index([tenantId])
+  @@index([cuit])
+}
+
+model ClienteVersion {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  clienteId             String
+  version               Int
+  validFrom             DateTime
+  validTo               DateTime  
+  razonSocial           String
+  nombreFantasia        String?
+  inicioActividades     DateTime
+  actividadesSecundarias String?   
+  jurisdiccion          String    
+  ingresosBrutos        String    
+  convenioArtId         String?   
+  art                   String    
+  productor             String?   
+  cuentaBancaria        String?
+  cbu                   String?
+  alias                 String?
+  certificadoDigitalUrl String?   
+  representanteLegal    String?
+  apoderados            String?
+  firmantes             String?
+  logoUrl               String?
+  tipoSocietario        String
+  condicionIva          String
+  actividadPrincipal     String
+  codigoAfip            String
+  legalAddress          String
+  fiscalAddress         String
+  provincia             String
+  localidad             String
+  codigoPostal          String
+  email                 String
+  telefono              String?
+  estado                String    @default("ACTIVO")
+  observaciones         String?
+  updatedBy             String
+
+  tenant                Tenant    @relation(fields: [tenantId], references: [id])
+  cliente               Cliente   @relation(fields: [clienteId], references: [id])
+  recibosHistoricos     ReciboSueldo[]
+
+  @@index([tenantId])
+  @@index([clienteId])
+  @@index([validFrom, validTo])
+
+  tipoCliente           String    @default("Empresa")
+  primerLegajo          Int       @default(1)
+  digitosLegajo         Int       @default(4)
+}
+
+model Sucursal {
+  id            String            @id @default(uuid())
+  tenantId      String
+  clienteId     String
+  nombre        String
+  domicilio     String
+  telefono      String?
+  responsable   String?
+  fechaApertura DateTime
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  deletedAt     DateTime?
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
+  cliente       Cliente           @relation(fields: [clienteId], references: [id])
+  empleados     EmpleadoVersion[]
+
+  @@index([tenantId])
+  @@index([clienteId])
+}
+
+model DocumentoCliente {
+  id          String    @id @default(uuid())
+  clienteId   String
+  nombre      String
+  tipo        String    
+  url         String
+  fileName    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  cliente     Cliente   @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+}
+
+// ----------------------------------------------------
+// 2. CONVENIOS, SINDICATOS Y OBRAS SOCIALES
+// ----------------------------------------------------
+model Convenio {
+  id          String            @id @default(uuid())
+  tenantId    String
+  numero      String            
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  versiones   ConvenioVersion[]
+  escalas     EscalaSalarial[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId])
+}
+
+model ConvenioVersion {
+  id             String            @id @default(uuid())
+  tenantId       String
+  convenioId     String
+  version        Int
+  validFrom      DateTime
+  validTo        DateTime
+  nombre         String
+  descripcion    String?
+  sindicatoId    String
+  tipoLiquidacion TipoConvenio
+  antiguedadPorc Decimal @default(1.000000)
+  estado         String            @default("ACTIVO")
+  updatedBy      String
+
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  convenio       Convenio          @relation(fields: [convenioId], references: [id])
+  sindicato      Sindicato         @relation(fields: [sindicatoId], references: [id])
+  empleados      EmpleadoVersion[]
+  recibos        ReciboSueldo[]
+
+  @@index([tenantId])
+  @@index([convenioId])
+  @@index([validFrom, validTo])
+}
+
+model Sindicato {
+  id          String             @id @default(uuid())
+  tenantId    String
+  codigo      String             
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  versiones   SindicatoVersion[]
+  convenioVersiones ConvenioVersion[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId])
+}
+
+model SindicatoVersion {
+  id                    String            @id @default(uuid())
+  tenantId              String
+  sindicatoId           String
+  version               Int
+  validFrom             DateTime
+  validTo               DateTime
+  nombre                String
+  porcentajeAporte      Decimal @default(0.000000)
+  porcentajeContribucion Decimal @default(0.000000)
+  cbu                   String?
+  alias                 String?
+  estado                String            @default("ACTIVO")
+  updatedBy             String
+
+  tenant                Tenant            @relation(fields: [tenantId], references: [id])
+  sindicato             Sindicato         @relation(fields: [sindicatoId], references: [id])
+  empleados             EmpleadoVersion[]
+
+  @@index([tenantId])
+  @@index([sindicatoId])
+  @@index([validFrom, validTo])
+}
+
+model ObraSocial {
+  id          String              @id @default(uuid())
+  tenantId    String
+  codigo      String              
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  versiones   ObraSocialVersion[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId])
+}
+
+model ObraSocialVersion {
+  id                    String            @id @default(uuid())
+  tenantId              String
+  obraSocialId          String
+  version               Int
+  validFrom             DateTime
+  validTo               DateTime
+  nombre                String
+  porcentajeAporte      Decimal @default(3.000000)
+  porcentajeContribucion Decimal @default(6.000000)
+  estado                String            @default("ACTIVO")
+  updatedBy             String
+
+  tenant                Tenant            @relation(fields: [tenantId], references: [id])
+  obraSocial            ObraSocial        @relation(fields: [obraSocialId], references: [id])
+  empleados             EmpleadoVersion[]
+
+  @@index([tenantId])
+  @@index([obraSocialId])
+  @@index([validFrom, validTo])
+}
+
+model EscalaSalarial {
+  id           String            @id @default(uuid())
+  tenantId     String
+  convenioId   String
+  periodo      String            
+  fechaDesde   DateTime
+  fechaHasta   DateTime
+  resolucion   String?
+  pdfOficial   String?
+  observaciones String?
+  version      Int               @default(1)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  deletedAt    DateTime?
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id])
+  convenio     Convenio          @relation(fields: [convenioId], references: [id])
+  categorias   Categoria[]
+  recibos      ReciboSueldo[]
+
+  @@index([tenantId])
+  @@index([convenioId])
+  @@index([periodo])
+}
+
+model Categoria {
+  id           String            @id @default(uuid())
+  escalaId     String
+  nombre       String
+  codigo       String
+  valorHora    Decimal @default(0.000000)
+  valorMensual Decimal @default(0.000000)
+  valorJornada Decimal @default(0.000000)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  deletedAt    DateTime?
+
+  escala       EscalaSalarial    @relation(fields: [escalaId], references: [id])
+  empleados    EmpleadoVersion[]
+  recibos      ReciboSueldo[]
+
+  @@index([escalaId])
+}
+
+// ----------------------------------------------------
+// 3. PARAMETROS DE LIQUIDACIÓN
+// ----------------------------------------------------
+model Parametro {
+  id          String             @id @default(uuid())
+  tenantId    String
+  clave       String             
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  versiones   ParametroVersion[]
+
+  @@unique([tenantId, clave])
+  @@index([tenantId])
+}
+
+model ParametroVersion {
+  id          String    @id @default(uuid())
+  tenantId    String
+  parametroId String
+  version     Int
+  validFrom   DateTime
+  validTo     DateTime
+  valor       Decimal
+  descripcion String?
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  parametro   Parametro @relation(fields: [parametroId], references: [id])
+
+  @@index([tenantId])
+  @@index([parametroId])
+  @@index([validFrom, validTo])
+}
+
+// ----------------------------------------------------
+// 4. MAESTRO DE CONCEPTOS (Versionado)
+// ----------------------------------------------------
+model Concepto {
+  id          String            @id @default(uuid())
+  tenantId    String
+  codigo      String            
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  versiones   ConceptoVersion[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId])
+  @@index([codigo])
+}
+
+model ConceptoVersion {
+  id              String            @id @default(uuid())
+  tenantId        String
+  conceptoId      String
+  version         Int
+  validFrom       DateTime
+  validTo         DateTime
+  nombre          String
+  tipo            TipoConcepto
+  formula         String            
+  ordenImpresion  Int               @default(100)
+  activo          Boolean           @default(true)
+  codigoAfip      String?           
+  updatedBy       String
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  concepto        Concepto          @relation(fields: [conceptoId], references: [id])
+  recibosDetalles ReciboDetalle[]
+
+  @@index([tenantId])
+  @@index([conceptoId])
+  @@index([validFrom, validTo])
+}
+
+// ----------------------------------------------------
+// 5. EMPLEADOS (Versionado)
+// ----------------------------------------------------
+model Empleado {
+  id          String            @id @default(uuid())
+  tenantId    String
+  clienteId   String
+  cuil        String            @unique
+  dni         String            @unique
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id])
+  cliente           Cliente           @relation(fields: [clienteId], references: [id])
+  versiones         EmpleadoVersion[]
+  embargos          Embargo[]
+  vacaciones  Vacacion[]
+  recibos     ReciboSueldo[]
+  novedades         NovedadMensual[]
+
+  @@index([tenantId])
+  @@index([clienteId])
+  @@index([cuil])
+  @@index([dni])
+}
+
+model EmpleadoVersion {
+  id                    String            @id @default(uuid())
+  tenantId              String
+  empleadoId            String
+  version               Int
+  validFrom             DateTime
+  validTo               DateTime
+  legajo                String
+  apellido              String
+  nombre                String
+  sexo                  String
+  fechaNacimiento       DateTime
+  estadoCivil           String
+  nacionalidad          String
+  direccion             String
+  provincia             String
+  localidad             String
+  codigoPostal          String
+  email                 String
+  telefono              String?
+  contactoEmergencia    String?
+  grupoSanguineo        String?
+  nivelEducativo        String?
+  profesion             String?
+  discapacidad          Boolean           @default(false)
+  licenciaConducir      String?
+  fotoUrl               String?
+  firmaUrl              String?
+
+  // Datos Laborales
+  fechaIngreso          DateTime
+  fechaEgreso           DateTime?
+  motivoBaja            String?
+  tipoContrato          String            
+  modalidad             String            
+  sucursalId            String
+  convenioVersionId     String
+  categoriaId           String
+  centroCosto           String?
+  jornada               String
+  horasSemanales        Decimal @default(44.000000)
+  obraSocialVersionId   String
+  sindicatoVersionId    String? 
+  banco                 String?
+  cbu                   String?
+  alias                 String?
+  formaPago             String            
+  estado                String            @default("ACTIVO") 
+
+  // Seguros
+  seguroVida            Boolean           @default(false)
+  seguroRetiro          Boolean           @default(false)
+
+  // Control de EPP / Capacitaciones
+  uniformesEntregados   String?
+  eppEntregados         String?
+  cursosCapacitaciones  String?
+  examenesPreocupacionales String?
+
+  // AFIP
+  afipEstado            String            @default("ACTIVO")
+  afipAltaTemprana      Boolean           @default(false)
+  afipBaja              Boolean           @default(false)
+  afipCondicion         String
+  afipSituacionRevista  String
+  afipCodigoModalidad   String
+  afipCodigoActividad   String
+  afipCodigoPuesto      String
+  updatedBy             String
+  deletedAt             DateTime?
+  deletedBy             String?
+
+  tenant                Tenant            @relation(fields: [tenantId], references: [id])
+  empleado              Empleado          @relation(fields: [empleadoId], references: [id])
+  sucursal              Sucursal          @relation(fields: [sucursalId], references: [id])
+  convenioVersion       ConvenioVersion   @relation(fields: [convenioVersionId], references: [id])
+  categoria             Categoria         @relation(fields: [categoriaId], references: [id])
+  obraSocialVersion     ObraSocialVersion @relation(fields: [obraSocialVersionId], references: [id])
+  sindicatoVersion      SindicatoVersion? @relation(fields: [sindicatoVersionId], references: [id])
+  recibosHistoricos     ReciboSueldo[]
+
+  @@index([tenantId])
+  @@index([empleadoId])
+  @@index([validFrom, validTo])
+}
+
+// ----------------------------------------------------
+// 6. OPERACIONES (Embargos, Vacaciones y Novedades)
+// ----------------------------------------------------
+model Embargo {
+  id            String    @id @default(uuid())
+  tenantId      String
+  empleadoId    String
+  juzgado       String
+  expediente    String
+  tipo          String    // FIJO, PORCENTAJE
+  montoFijo     Decimal @default(0.000000)
+  porcentaje    Decimal @default(0.000000) 
+  prioridad     Int       @default(1)   
+  fechaInicio   DateTime
+  fechaFin      DateTime?
+  estado        String    @default("ACTIVO") 
+  observaciones String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  empleado      Empleado  @relation(fields: [empleadoId], references: [id])
+
+  @@index([tenantId])
+  @@index([empleadoId])
+  @@index([estado])
+}
+
+model Vacacion {
+  id              String    @id @default(uuid())
+  tenantId        String
+  empleadoId      String
+  periodo         String    
+  diasDisponibles Int
+  diasGozados     Int       @default(0)
+  saldo           Int
+  fechaInicio     DateTime?
+  fechaFin        DateTime?
+  pagoAnticipado  Boolean   @default(false)
+  estado          String    @default("PENDIENTE") 
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  empleado        Empleado  @relation(fields: [empleadoId], references: [id])
+
+  @@index([tenantId])
+  @@index([empleadoId])
+  @@index([periodo])
+}
+
+model NovedadMensual {
+  id                  String    @id @default(uuid())
+  empleadoId          String
+  periodo             String    
+  quincena            Int       @default(0)
+  
+  horasNormales       Decimal @default(0.000000)
+  horasExtras50       Decimal @default(0.000000)
+  horasExtras100      Decimal @default(0.000000)
+  feriadosTrabajados  Decimal @default(0.000000)
+  horasNocturnas      Decimal @default(0.000000)
+  ausencias           Int       @default(0)
+  llegadasTarde       Int       @default(0)
+  diasLicencia        Int       @default(0)
+  diasVacaciones      Int       @default(0)
+  
+  adelantos           Decimal @default(0.000000)
+  bonos               Decimal @default(0.000000)
+  premios             Decimal @default(0.000000)
+  comisiones          Decimal @default(0.000000)
+  viaticos            Decimal @default(0.000000)
+  sancionesDescuento  Decimal @default(0.000000)
+  otrosDescuentos     Decimal @default(0.000000)
+  conceptosNoRem      Decimal @default(0.000000)
+  observaciones       String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  empleado            Empleado  @relation(fields: [empleadoId], references: [id])
+
+  @@unique([empleadoId, periodo, quincena])
+  @@index([empleadoId])
+}
+
+model CalendarioLaboral {
+  id          String    @id @default(uuid())
+  tenantId    String
+  fecha       DateTime
+  nombre      String
+  tipo        String    
+  provincia   String?
+  localidad   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, fecha])
+  @@index([tenantId])
+  @@index([fecha])
+}
+
+// ----------------------------------------------------
+// 7. PROCESO DE LIQUIDACIÓN Y TRANSICIONES DE WORKFLOW
+// ----------------------------------------------------
+model Liquidacion {
+  id              String            @id @default(uuid())
+  tenantId        String
+  clienteId       String
+  periodo         String            
+  quincena        Int
+  tipo            String            
+  estado          EstadoWorkflow    @default(BORRADOR)
+  fechaLiquidacion DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  cliente         Cliente           @relation(fields: [clienteId], references: [id])
+  recibos         ReciboSueldo[]
+  workflowLogs    WorkflowLog[]
+
+  @@unique([clienteId, periodo, quincena, tipo])
+  @@index([tenantId])
+  @@index([clienteId])
+}
+
+model WorkflowLog {
+  id            String          @id @default(uuid())
+  tenantId      String
+  liquidacionId String
+  estadoOrigen  EstadoWorkflow
+  estadoDestino EstadoWorkflow
+  comentario    String?
+  userId        String
+  createdAt     DateTime        @default(now())
+
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  liquidacion   Liquidacion     @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([liquidacionId])
+}
+
+model ReciboSueldo {
+  id                      String          @id @default(uuid())
+  liquidacionId           String
+  clienteId               String
+  empleadoId              String
+  
+  // Trazabilidad temporal estricta
+  empleadoVersionId       String
+  clienteVersionId        String
+  convenioVersionId       String
+  escalaId                String
+  categoriaId             String
+  
+  // Rectificaciones y Ajustes
+  rectificaReciboId       String? @unique
+  rectificaRecibo         ReciboSueldo?   @relation("Rectificaciones", fields: [rectificaReciboId], references: [id])
+  rectificadoPorRecibo    ReciboSueldo?   @relation("Rectificaciones")
+
+  cuil                    String
+  cuit                    String
+  periodo                 String
+  quincena                Int
+  basicoAplicado          Decimal
+  antiguedadAnos          Int
+  
+  // Totales de Liquidación en Decimales
+  totalRemunerativo       Decimal @default(0.000000)
+  totalNoRemunerativo     Decimal @default(0.000000)
+  totalDescuentos         Decimal @default(0.000000)
+  totalNeto               Decimal @default(0.000000)
+  costoLaboralTotal       Decimal @default(0.000000) 
+  totalContribuciones     Decimal @default(0.000000) 
+  
+  // Seguridad y firma digital
+  uniqueCode              String          @unique
+  hashSha256              String          
+  reciboVersion           Int             @default(1)
+  firmaDigital            String?
+  xmlData                 String? 
+  fechaImpresion          DateTime?
+  cantidadImpresiones     Int             @default(0)
+  estado                  String          @default("EMITIDO") 
+  fechaPago               DateTime
+  bancoPago               String?
+  cbuPago                 String?
+  pdfUrl                  String?
+  
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  // Relaciones
+  liquidacion             Liquidacion     @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  cliente                 Cliente         @relation(fields: [clienteId], references: [id])
+  empleado                Empleado        @relation(fields: [empleadoId], references: [id])
+  empleadoVersion         EmpleadoVersion @relation(fields: [empleadoVersionId], references: [id])
+  clienteVersion          ClienteVersion  @relation(fields: [clienteVersionId], references: [id])
+  convenioVersion         ConvenioVersion @relation(fields: [convenioVersionId], references: [id])
+  escala                  EscalaSalarial  @relation(fields: [escalaId], references: [id])
+  categoria               Categoria       @relation(fields: [categoriaId], references: [id])
+  detalles                ReciboDetalle[]
+
+  @@index([liquidacionId])
+  @@index([empleadoId])
+  @@index([periodo])
+  @@index([uniqueCode])
+}
+
+model ReciboDetalle {
+  id                String          @id @default(uuid())
+  reciboId          String
+  conceptoVersionId String 
+  conceptoCodigo    String
+  conceptoNombre    String
+  tipo              TipoConcepto
+  cantidad          Decimal @default(0.000000)
+  valorUnitario     Decimal @default(0.000000)
+  subtotal          Decimal @default(0.000000)
+  formulaAplicada   String? 
+  porcentajeAplicado Decimal? @default(0.000000) 
+  createdAt         DateTime        @default(now())
+
+  recibo            ReciboSueldo    @relation(fields: [reciboId], references: [id], onDelete: Cascade)
+  conceptoVersion   ConceptoVersion @relation(fields: [conceptoVersionId], references: [id])
+
+  @@index([reciboId])
+}
+
+// ----------------------------------------------------
+// 8. AUDITORÍA EXHAUSTIVA
+// ----------------------------------------------------
+model AuditLog {
+  id            String    @id @default(uuid())
+  tenantId      String?
+  userId        String?
+  userEmail     String?
+  action        String    
+  modulo        String    
+  tabla         String?
+  recordId      String?
+  valorAnterior String?
+  valorNuevo    String?
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime  @default(now())
+
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id])
+  usuario       User?     @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([createdAt])
+}
