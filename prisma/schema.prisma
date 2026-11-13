@@ -1,880 +1,940 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
 }
 
-enum Rol {
-  SUPER_ADMIN
-  CONTADOR
-  LIQUIDADOR
-  ADMIN_CLIENTE
-  CONSULTA
-}
+// =============================================================================
+// GRUPO 1: AUTENTICACIÓN, USUARIOS, ROLES, PERMISOS Y MEMBRESÍAS (#01 a #07)
+// =============================================================================
 
-enum TipoConvenio {
-  MENSUAL
-  QUINCENAL
-  JORNAL
-  HORA
-}
-
-enum TipoConcepto {
-  REMUNERATIVO
-  NO_REMUNERATIVO
-  DESCUENTO
-  APORTE_PATRONAL
-  CONTRIBUCION
-}
-
-enum EstadoWorkflow {
-  BORRADOR
-  VALIDANDO
-  CALCULANDO
-  GENERADO
-  REVISADO
-  APROBADO
-  PAGADO
-  EXPORTADO_AFIP
-  CERRADO
-}
-
-enum TipoLicencia {
-  ENFERMEDAD
-  ACCIDENTE
-  VACACIONES
-  MATERNIDAD
-  PATERNIDAD
-  SUSPENSION
-  OTRO
-}
-
-// ----------------------------------------------------
-// 0. MULTI-TENANT SAAS
-// ----------------------------------------------------
 model Tenant {
-  id                String            @id @default(uuid())
-  nombre            String
-  subdominio        String            @unique
-  estado            String            @default("ACTIVO")
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  deletedAt         DateTime?
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(150)
+  slug      String   @unique @db.VarChar(80)
+  status    String   @default("ACTIVE") @db.VarChar(20)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  featureFlags      String            @default("[]")          
-
-  // Relaciones
-  usuarios          TenantUser[]
-  clientes          Cliente[]
-  sucursales        Sucursal[]
-  convenios         Convenio[]
-  sindicatos        Sindicato[]
-  obrasSociales     ObraSocial[]
-  escalas           EscalaSalarial[]
-  conceptos         Concepto[]
-  parametros        Parametro[]
-  empleados         Empleado[]
-  embargos          Embargo[]
-  vacaciones        Vacacion[]
-  calendarios       CalendarioLaboral[]
-  liquidaciones     Liquidacion[]
-  auditLogs         AuditLog[]
-  
-  // Back-relations para versiones que ahora tienen tenantId
-  clienteVersiones     ClienteVersion[]
-  convenioVersiones    ConvenioVersion[]
-  sindicatoVersiones   SindicatoVersion[]
-  obraSocialVersiones  ObraSocialVersion[]
-  parametroVersiones   ParametroVersion[]
-  conceptoVersiones    ConceptoVersion[]
-  empleadoVersiones    EmpleadoVersion[]
-  workflowLogs         WorkflowLog[]
-
-  @@index([subdominio])
-}
-
-model TenantUser {
-  id          String    @id @default(uuid())
-  tenantId    String
-  userId      String
-  rol         Rol       @default(LIQUIDADOR)
-  permisos    String            @default("[]")  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
-  user        User      @relation(fields: [userId], references: [id])
-
-  @@unique([tenantId, userId])
-  @@index([tenantId])
-  @@index([userId])
+  @@unique([id], map: "tenants_pkey")
+  @@map("tenants")
 }
 
 model User {
-  id            String       @id @default(uuid())
-  name          String?
-  email         String       @unique
-  passwordHash  String
-  mfaEnabled    Boolean      @default(false)
-  mfaSecret     String?
-  estado        String       @default("ACTIVO")
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  deletedAt     DateTime?
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String    @unique @db.VarChar(255)
+  fullName            String    @map("full_name") @db.VarChar(150)
+  passwordHash        String    @map("password_hash")
+  status              String    @default("ACTIVE") @db.VarChar(20)
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt         DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenants       TenantUser[]
-  sessions      Session[]
-  auditLogs     AuditLog[]
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(40)
+  name        String   @db.VarChar(100)
+  description String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(80)
+  module      String   @db.VarChar(50)
+  description String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  grantedAt    DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model TenantMembership {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  invitedBy String?  @map("invited_by") @db.Uuid
+  status    String   @default("ACTIVE") @db.VarChar(20)
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([userId, tenantId, id])
+  @@unique([tenantId, userId])
+  @@map("tenant_memberships")
 }
 
 model Session {
-  id           String    @id @default(uuid())
-  userId       String
-  token        String    @unique
-  userAgent    String?
-  ipAddress    String?
-  expiresAt    DateTime
-  revocada     Boolean   @default(false)
-  createdAt    DateTime  @default(now())
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  activeTenantId String?   @map("active_tenant_id") @db.Uuid
+  membershipId   String?   @map("membership_id") @db.Uuid
+  tokenHash      String    @unique @map("token_hash") @db.Char(64)
+  ipAddress      String?   @map("ip_address") @db.VarChar(45)
+  userAgent      String?   @map("user_agent")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason  String?   @map("revoked_reason") @db.VarChar(100)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  user         User      @relation(fields: [userId], references: [id])
-
-  @@index([userId])
+  @@map("sessions")
 }
 
-// ----------------------------------------------------
-// 1. EMPRESAS (Versionamiento Bi-Temporal)
-// ----------------------------------------------------
-model Cliente {
-  id                String            @id @default(uuid())
-  tenantId          String
-  cuit              String            
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  deletedAt         DateTime?
+// =============================================================================
+// GRUPO 2: CATÁLOGOS HÍBRIDOS (#08 a #17)
+// =============================================================================
 
-  tenant            Tenant            @relation(fields: [tenantId], references: [id])
-  versiones         ClienteVersion[]
-  sucursales        Sucursal[]
-  documentos        DocumentoCliente[]
-  empleados         Empleado[]
-  liquidaciones     Liquidacion[]
-  recibosGenerados  ReciboSueldo[]
+model CollectiveAgreement {
+  id                          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                    String?  @map("tenant_id") @db.Uuid
+  cctNumber                   String   @map("cct_number") @db.VarChar(30)
+  name                        String   @db.VarChar(200)
+  unionName                   String   @map("union_name") @db.VarChar(150)
+  activity                    String   @db.VarChar(200)
+  territorialScope            String   @map("territorial_scope") @db.VarChar(150)
+  defaultRemunerationModality String   @map("default_remuneration_modality") @db.VarChar(20)
+  defaultPaymentFrequency     String   @map("default_payment_frequency") @db.VarChar(20)
+  standardMonthlyHours        Decimal  @default(200.00) @map("standard_monthly_hours") @db.Decimal(8, 2)
+  standardQuincenalHours      Decimal? @default(96.00) @map("standard_quincenal_hours") @db.Decimal(8, 2)
+  seniorityComputationRule    Json     @default("{}") @map("seniority_computation_rule")
+  overtimeRule                Json     @default("{}") @map("overtime_rule")
+  holidayRule                 Json     @default("{}") @map("holiday_rule")
+  vacationRule                Json     @default("{}") @map("vacation_rule")
+  isActive                    Boolean  @default(true) @map("is_active")
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@map("collective_agreements")
+}
+
+model AgreementBranch {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String?  @map("tenant_id") @db.Uuid
+  agreementId             String   @map("agreement_id") @db.Uuid
+  code                    String   @db.VarChar(40)
+  name                    String   @db.VarChar(200)
+  referenceMonthlyHours   Decimal  @default(192.00) @map("reference_monthly_hours") @db.Decimal(8, 2)
+  referenceQuincenalHours Decimal? @default(96.00) @map("reference_quincenal_hours") @db.Decimal(8, 2)
+  specificRules           Json     @default("{}") @map("specific_rules")
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([agreementId, id])
+  @@unique([agreementId, code])
+  @@map("agreement_branches")
+}
+
+model AgreementCategory {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String?  @map("tenant_id") @db.Uuid
+  agreementId             String   @map("agreement_id") @db.Uuid
+  branchId                String   @map("branch_id") @db.Uuid
+  code                    String   @db.VarChar(40)
+  name                    String   @db.VarChar(150)
+  remunerationModality    String   @map("remuneration_modality") @db.VarChar(20)
+  remunerationUnit        String   @map("remuneration_unit") @db.VarChar(20)
+  defaultPaymentFrequency String   @map("default_payment_frequency") @db.VarChar(20)
+  hierarchyOrder          Int      @default(100) @map("hierarchy_order")
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([agreementId, branchId, id])
+  @@unique([branchId, code])
+  @@map("agreement_categories")
+}
+
+model SalaryScale {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String?   @map("tenant_id") @db.Uuid
+  agreementId             String    @map("agreement_id") @db.Uuid
+  branchId                String    @map("branch_id") @db.Uuid
+  supersededById          String?   @map("superseded_by_id") @db.Uuid
+  version                 Int       @default(1)
+  agreementNumber         String    @map("agreement_number") @db.VarChar(120)
+  homologationDisposition String?   @map("homologation_disposition") @db.VarChar(150)
+  periodCode              String    @map("period_code") @db.Char(7)
+  validFrom               DateTime  @map("valid_from") @db.Date
+  validTo                 DateTime  @map("valid_to") @db.Date
+  status                  String    @default("PENDING_VALIDATION") @db.VarChar(25)
+  sourceDocumentRef       String?   @map("source_document_ref")
+  validatedBy             String?   @map("validated_by") @db.Uuid
+  validatedAt             DateTime? @map("validated_at") @db.Timestamptz(6)
+  notes                   String?
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([agreementId, branchId, id])
+  @@map("salary_scales")
+}
+
+model SalaryScaleItem {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String?  @map("tenant_id") @db.Uuid
+  salaryScaleId           String   @map("salary_scale_id") @db.Uuid
+  agreementId             String   @map("agreement_id") @db.Uuid
+  branchId                String   @map("branch_id") @db.Uuid
+  categoryId              String   @map("category_id") @db.Uuid
+  hourlyRate              Decimal? @map("hourly_rate") @db.Decimal(18, 6)
+  dailyRate               Decimal? @map("daily_rate") @db.Decimal(18, 6)
+  monthlyBasic            Decimal? @map("monthly_basic") @db.Decimal(18, 2)
+  remunerativeAdditionals Json     @default("[]") @map("remunerative_additionals")
+  nonRemunerativeConcepts Json     @default("[]") @map("non_remunerative_concepts")
+  fixedAmounts            Json     @default("{}") @map("fixed_amounts")
+  percentages             Json     @default("{}")
+  notes                   String?
+
+  @@unique([salaryScaleId, categoryId])
+  @@map("salary_scale_items")
+}
+
+model PayrollConcept {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String?  @map("tenant_id") @db.Uuid
+  agreementId             String?  @map("agreement_id") @db.Uuid
+  code                    String   @db.VarChar(30)
+  name                    String   @db.VarChar(150)
+  nature                  String   @db.VarChar(30)
+  defaultUnit             String   @map("default_unit") @db.VarChar(20)
+  accrualScope            String   @map("accrual_scope") @db.VarChar(30)
+  printOrder              Int      @default(100) @map("print_order")
+  taxPrevisionalTreatment Json     @default("{}") @map("tax_previsional_treatment")
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("payroll_concepts")
+}
+
+model PayrollRule {
+  id                           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                     String?   @map("tenant_id") @db.Uuid
+  conceptId                    String    @map("concept_id") @db.Uuid
+  agreementId                  String?   @map("agreement_id") @db.Uuid
+  branchId                     String?   @map("branch_id") @db.Uuid
+  version                      Int       @default(1)
+  ruleCode                     String    @map("rule_code") @db.VarChar(60)
+  applicableModalities         String[]  @map("applicable_modalities")
+  applicableRemunerationTypes  String[]  @map("applicable_remuneration_types")
+  applicablePaymentFrequencies String[]  @map("applicable_payment_frequencies")
+  quantityFormula              String?   @map("quantity_formula")
+  baseFormula                  String    @map("base_formula")
+  rateFormula                  String?   @map("rate_formula")
+  amountFormula                String    @map("amount_formula")
+  conditionsExpression         String?   @map("conditions_expression")
+  exceptionsJson               Json      @default("[]") @map("exceptions_json")
+  capMinParamCode              String?   @map("cap_min_param_code") @db.VarChar(60)
+  capMaxParamCode              String?   @map("cap_max_param_code") @db.VarChar(60)
+  normativeSource              String    @map("normative_source") @db.VarChar(200)
+  normativeArticle             String    @map("normative_article") @db.VarChar(150)
+  territorialOrActivityScope   String    @map("territorial_or_activity_scope") @db.VarChar(150)
+  consultedAt                  DateTime  @map("consulted_at") @db.Date
+  validFrom                    DateTime  @map("valid_from") @db.Date
+  validTo                      DateTime? @map("valid_to") @db.Date
+  validationStatus             String    @default("PENDING_VALIDATION") @map("validation_status") @db.VarChar(30)
+  validatedBy                  String?   @map("validated_by") @db.Uuid
+  validatedAt                  DateTime? @map("validated_at") @db.Timestamptz(6)
+  observations                 String?
+  createdAt                    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([conceptId, id])
+  @@unique([conceptId, version])
+  @@map("payroll_rules")
+}
+
+model SystemParameter {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String?   @map("tenant_id") @db.Uuid
+  code                String    @db.VarChar(60)
+  name                String    @db.VarChar(150)
+  version             Int       @default(1)
+  numericValue        Decimal?  @map("numeric_value") @db.Decimal(18, 6)
+  jsonValue           Json?     @map("json_value")
+  normativeSource     String    @map("normative_source") @db.VarChar(200)
+  normativeResolution String    @map("normative_resolution") @db.VarChar(150)
+  consultedAt         DateTime  @map("consulted_at") @db.Date
+  validFrom           DateTime  @map("valid_from") @db.Date
+  validTo             DateTime? @map("valid_to") @db.Date
+  validationStatus    String    @default("PENDING_VALIDATION") @map("validation_status") @db.VarChar(30)
+  observations        String?
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("system_parameters")
+}
+
+model HolidayCalendar {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String?  @map("tenant_id") @db.Uuid
+  agreementId       String?  @map("agreement_id") @db.Uuid
+  holidayDate       DateTime @map("holiday_date") @db.Date
+  name              String   @db.VarChar(150)
+  holidayType       String   @map("holiday_type") @db.VarChar(30)
+  province          String?  @db.VarChar(80)
+  locality          String?  @db.VarChar(100)
+  isBankBusinessDay Boolean  @default(false) @map("is_bank_business_day")
+  normativeSource   String   @map("normative_source") @db.VarChar(150)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("holiday_calendars")
+}
+
+model PayrollNoveltyType {
+  id                    String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String? @map("tenant_id") @db.Uuid
+  linkedConceptId       String? @map("linked_concept_id") @db.Uuid
+  code                  String  @db.VarChar(40)
+  name                  String  @db.VarChar(120)
+  groupCategory         String  @map("group_category") @db.VarChar(30)
+  defaultUnit           String  @map("default_unit") @db.VarChar(20)
+  requiresJustification Boolean @default(false) @map("requires_justification")
+  requiresDocument      Boolean @default(false) @map("requires_document")
+  isActive              Boolean @default(true) @map("is_active")
+
+  @@map("payroll_novelty_types")
+}
+
+// =============================================================================
+// GRUPO 3: DATOS MAESTROS, LEGAJOS, DOCUMENTOS Y STAGING PRIVADOS (#18 a #30)
+// =============================================================================
+
+model Company {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  cuit           String    @db.Char(11)
+  currentVersion Int       @default(1) @map("current_version")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
   @@unique([tenantId, cuit])
-  @@index([tenantId])
-  @@index([cuit])
+  @@map("companies")
 }
 
-model ClienteVersion {
-  id                    String    @id @default(uuid())
-  tenantId              String
-  clienteId             String
-  version               Int
-  validFrom             DateTime
-  validTo               DateTime  
-  razonSocial           String
-  nombreFantasia        String?
-  inicioActividades     DateTime
-  actividadesSecundarias String?   
-  jurisdiccion          String    
-  ingresosBrutos        String    
-  convenioArtId         String?   
-  art                   String    
-  productor             String?   
-  cuentaBancaria        String?
-  cbu                   String?
-  alias                 String?
-  certificadoDigitalUrl String?   
-  representanteLegal    String?
-  apoderados            String?
-  firmantes             String?
-  logoUrl               String?
-  tipoSocietario        String
-  condicionIva          String
-  actividadPrincipal     String
-  codigoAfip            String
-  legalAddress          String
-  fiscalAddress         String
-  provincia             String
-  localidad             String
-  codigoPostal          String
-  email                 String
-  telefono              String?
-  estado                String    @default("ACTIVO")
-  observaciones         String?
-  updatedBy             String
+model CompanyVersion {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String    @map("tenant_id") @db.Uuid
+  companyId               String    @map("company_id") @db.Uuid
+  version                 Int
+  validFrom               DateTime  @map("valid_from") @db.Date
+  validTo                 DateTime? @map("valid_to") @db.Date
+  legalName               String    @map("legal_name") @db.VarChar(200)
+  tradeName               String?   @map("trade_name") @db.VarChar(200)
+  personType              String    @map("person_type") @db.VarChar(20)
+  companyType             String    @map("company_type") @db.VarChar(60)
+  holderOrRepresentatives String?   @map("holder_or_representatives") @db.VarChar(250)
+  registrationDate        DateTime? @map("registration_date") @db.Date
+  activityStartDate       DateTime  @map("activity_start_date") @db.Date
+  mainActivity            String    @map("main_activity") @db.VarChar(200)
+  secondaryActivities     String?   @map("secondary_activities")
+  arcaActivityCode        String    @map("arca_activity_code") @db.VarChar(20)
+  vatCondition            String    @map("vat_condition") @db.VarChar(60)
+  fiscalAddress           String    @map("fiscal_address") @db.VarChar(250)
+  legalAddress            String    @map("legal_address") @db.VarChar(250)
+  commercialAddress       String?   @map("commercial_address") @db.VarChar(250)
+  province                String    @db.VarChar(80)
+  locality                String    @db.VarChar(100)
+  postalCode              String    @map("postal_code") @db.VarChar(20)
+  phone                   String?   @db.VarChar(50)
+  email                   String    @db.VarChar(150)
+  registrationNumbers     Json      @default("{}") @map("registration_numbers")
+  bankName                String?   @map("bank_name") @db.VarChar(100)
+  cbu                     String?   @db.Char(22)
+  artName                 String    @map("art_name") @db.VarChar(120)
+  artAliquotPct           Decimal   @default(0) @map("art_aliquot_pct") @db.Decimal(10, 6)
+  artFixedAmount          Decimal   @default(0) @map("art_fixed_amount") @db.Decimal(18, 2)
+  institutionalObraSocial String?   @map("institutional_obra_social") @db.VarChar(150)
+  paymentScheduleRule     Json      @default("{\"businessDaysAfterClose\": 4}") @map("payment_schedule_rule")
+  createdBy               String    @map("created_by") @db.Uuid
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant                Tenant    @relation(fields: [tenantId], references: [id])
-  cliente               Cliente   @relation(fields: [clienteId], references: [id])
-  recibosHistoricos     ReciboSueldo[]
-
-  @@index([tenantId])
-  @@index([clienteId])
-  @@index([validFrom, validTo])
-
-  tipoCliente           String    @default("Empresa")
-  primerLegajo          Int       @default(1)
-  digitosLegajo         Int       @default(4)
+  @@unique([tenantId, id])
+  @@unique([tenantId, companyId, id])
+  @@unique([companyId, version])
+  @@map("company_versions")
 }
 
-model Sucursal {
-  id            String            @id @default(uuid())
-  tenantId      String
-  clienteId     String
-  nombre        String
-  domicilio     String
-  telefono      String?
-  responsable   String?
-  fechaApertura DateTime
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  deletedAt     DateTime?
+model CompanyBranch {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  companyId          String   @map("company_id") @db.Uuid
+  code               String   @db.VarChar(30)
+  name               String   @db.VarChar(150)
+  address            String   @db.VarChar(250)
+  locality           String   @db.VarChar(100)
+  province           String   @db.VarChar(80)
+  postalCode         String   @map("postal_code") @db.VarChar(20)
+  identificationData Json     @default("{}") @map("identification_data")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenant        Tenant            @relation(fields: [tenantId], references: [id])
-  cliente       Cliente           @relation(fields: [clienteId], references: [id])
-  empleados     EmpleadoVersion[]
-
-  @@index([tenantId])
-  @@index([clienteId])
+  @@unique([tenantId, id])
+  @@unique([tenantId, companyId, id])
+  @@unique([tenantId, companyId, code])
+  @@map("company_branches")
 }
 
-model DocumentoCliente {
-  id          String    @id @default(uuid())
-  clienteId   String
-  nombre      String
-  tipo        String    
-  url         String
-  fileName    String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+model CompanyAgreement {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String   @map("tenant_id") @db.Uuid
+  companyId                String   @map("company_id") @db.Uuid
+  agreementId              String   @map("agreement_id") @db.Uuid
+  branchId                 String?  @map("branch_id") @db.Uuid
+  confirmedBy              String   @map("confirmed_by") @db.Uuid
+  confirmedAt              DateTime @default(now()) @map("confirmed_at") @db.Timestamptz(6)
+  paymentFrequencyOverride String?  @map("payment_frequency_override") @db.VarChar(20)
+  customParameters         Json     @default("{}") @map("custom_parameters")
+  isActive                 Boolean  @default(true) @map("is_active")
 
-  cliente     Cliente   @relation(fields: [clienteId], references: [id])
-
-  @@index([clienteId])
+  @@unique([tenantId, id])
+  @@map("company_agreements")
 }
 
-// ----------------------------------------------------
-// 2. CONVENIOS, SINDICATOS Y OBRAS SOCIALES
-// ----------------------------------------------------
-model Convenio {
-  id          String            @id @default(uuid())
-  tenantId    String
-  numero      String            
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  deletedAt   DateTime?
+model Employee {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  companyId             String    @map("company_id") @db.Uuid
+  cuil                  String    @db.Char(11)
+  dni                   String    @db.VarChar(12)
+  legajo                String    @db.VarChar(30)
+  currentVersion        Int       @default(1) @map("current_version")
+  employmentStatus      String    @default("ACTIVE") @map("employment_status") @db.VarChar(30)
+  hireDate              DateTime  @map("hire_date") @db.Date
+  terminationDate       DateTime? @map("termination_date") @db.Date
+  recognizedPriorYears  Int       @default(0) @map("recognized_prior_years")
+  recognizedPriorMonths Int       @default(0) @map("recognized_prior_months")
+  recognizedPriorDays   Int       @default(0) @map("recognized_prior_days")
+  priorServicesNotes    String?   @map("prior_services_notes")
+  createdBy             String    @map("created_by") @db.Uuid
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenant      Tenant            @relation(fields: [tenantId], references: [id])
-  versiones   ConvenioVersion[]
-  escalas     EscalaSalarial[]
-
-  @@unique([tenantId, numero])
-  @@index([tenantId])
+  @@unique([tenantId, id])
+  @@unique([tenantId, companyId, id])
+  @@unique([tenantId, companyId, cuil])
+  @@unique([tenantId, companyId, legajo])
+  @@map("employees")
 }
 
-model ConvenioVersion {
-  id             String            @id @default(uuid())
-  tenantId       String
-  convenioId     String
-  version        Int
-  validFrom      DateTime
-  validTo        DateTime
-  nombre         String
-  descripcion    String?
-  sindicatoId    String
-  tipoLiquidacion TipoConvenio
-  antiguedadPorc Decimal @default(1.000000)
-  estado         String            @default("ACTIVO")
-  updatedBy      String
+model EmployeeVersion {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                  String    @map("tenant_id") @db.Uuid
+  companyId                 String    @map("company_id") @db.Uuid
+  employeeId                String    @map("employee_id") @db.Uuid
+  branchId                  String    @map("branch_id") @db.Uuid
+  agreementId               String    @map("agreement_id") @db.Uuid
+  agreementBranchId         String    @map("agreement_branch_id") @db.Uuid
+  categoryId                String    @map("category_id") @db.Uuid
+  version                   Int
+  validFrom                 DateTime  @map("valid_from") @db.Date
+  validTo                   DateTime? @map("valid_to") @db.Date
+  lastName                  String    @map("last_name") @db.VarChar(120)
+  firstName                 String    @map("first_name") @db.VarChar(120)
+  birthDate                 DateTime  @map("birth_date") @db.Date
+  registeredSex             String    @map("registered_sex") @db.Char(1)
+  nationality               String    @default("Argentina") @db.VarChar(80)
+  maritalStatus             String    @map("marital_status") @db.VarChar(40)
+  address                   String    @db.VarChar(250)
+  locality                  String    @db.VarChar(100)
+  province                  String    @db.VarChar(80)
+  postalCode                String    @map("postal_code") @db.VarChar(20)
+  phone                     String?   @db.VarChar(50)
+  email                     String?   @db.VarChar(150)
+  contractType              String    @map("contract_type") @db.VarChar(60)
+  hiringModalityCode        String    @default("001") @map("hiring_modality_code") @db.Char(3)
+  jobPosition               String    @map("job_position") @db.VarChar(120)
+  scheduleType              String    @map("schedule_type") @db.VarChar(40)
+  habitualSchedule          String    @map("habitual_schedule") @db.VarChar(120)
+  weeklyHours               Decimal   @default(48.00) @map("weekly_hours") @db.Decimal(6, 2)
+  remunerationModality      String    @map("remuneration_modality") @db.VarChar(20)
+  remunerationUnit          String    @map("remuneration_unit") @db.VarChar(20)
+  paymentFrequency          String    @map("payment_frequency") @db.VarChar(20)
+  customMonthlyHoursDivisor Decimal?  @map("custom_monthly_hours_divisor") @db.Decimal(8, 2)
+  workplaceLocation         String    @map("workplace_location") @db.VarChar(150)
+  obraSocialCode            String    @map("obra_social_code") @db.Char(6)
+  obraSocialName            String    @map("obra_social_name") @db.VarChar(150)
+  unionName                 String?   @map("union_name") @db.VarChar(150)
+  isUnionMember             Boolean   @default(true) @map("is_union_member")
+  appliesSolidarityQuota    Boolean   @default(false) @map("applies_solidarity_quota")
+  artOverride               String?   @map("art_override") @db.VarChar(120)
+  bankName                  String?   @map("bank_name") @db.VarChar(100)
+  cbu                       String?   @db.Char(22)
+  paymentMethodCode         String    @default("3") @map("payment_method_code") @db.Char(1)
+  arcaConditionCode         String    @default("01") @map("arca_condition_code") @db.Char(2)
+  arcaSituationCode         String    @default("01") @map("arca_situation_code") @db.Char(2)
+  arcaActivityCode          String    @default("049") @map("arca_activity_code") @db.Char(3)
+  arcaZoneCode              String    @default("01") @map("arca_zone_code") @db.Char(2)
+  arcaSiniestradoCode       String    @default("00") @map("arca_siniestrado_code") @db.Char(2)
+  hasScvo                   Boolean   @default(true) @map("has_scvo")
+  hasCctInsurance           Boolean   @default(true) @map("has_cct_insurance")
+  changeReason              String    @map("change_reason") @db.VarChar(200)
+  updatedBy                 String    @map("updated_by") @db.Uuid
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant         Tenant            @relation(fields: [tenantId], references: [id])
-  convenio       Convenio          @relation(fields: [convenioId], references: [id])
-  sindicato      Sindicato         @relation(fields: [sindicatoId], references: [id])
-  empleados      EmpleadoVersion[]
-  recibos        ReciboSueldo[]
-
-  @@index([tenantId])
-  @@index([convenioId])
-  @@index([validFrom, validTo])
+  @@unique([tenantId, id])
+  @@unique([tenantId, employeeId, id])
+  @@unique([employeeId, version])
+  @@map("employee_versions")
 }
 
-model Sindicato {
-  id          String             @id @default(uuid())
-  tenantId    String
-  codigo      String             
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  deletedAt   DateTime?
+model EmployeeFamilyMember {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                  String    @map("tenant_id") @db.Uuid
+  companyId                 String    @map("company_id") @db.Uuid
+  employeeId                String    @map("employee_id") @db.Uuid
+  supportingDocumentId      String?   @map("supporting_document_id") @db.Uuid
+  relationship              String    @db.VarChar(30)
+  lastName                  String    @map("last_name") @db.VarChar(120)
+  firstName                 String    @map("first_name") @db.VarChar(120)
+  dni                       String    @db.VarChar(12)
+  cuil                      String?   @db.Char(11)
+  birthDate                 DateTime  @map("birth_date") @db.Date
+  isDependentCharge         Boolean   @default(false) @map("is_dependent_charge")
+  appliesObraSocialAdherent Boolean   @default(false) @map("applies_obra_social_adherent")
+  appliesArcaSpouseFlag     Boolean   @default(false) @map("applies_arca_spouse_flag")
+  appliesArcaChildCount     Boolean   @default(false) @map("applies_arca_child_count")
+  hasDisabilityRestricted   Boolean   @default(false) @map("has_disability_restricted")
+  validFrom                 DateTime  @map("valid_from") @db.Date
+  validTo                   DateTime? @map("valid_to") @db.Date
+  notes                     String?
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant      Tenant             @relation(fields: [tenantId], references: [id])
-  versiones   SindicatoVersion[]
-  convenioVersiones ConvenioVersion[]
-
-  @@unique([tenantId, codigo])
-  @@index([tenantId])
+  @@unique([tenantId, id])
+  @@map("employee_family_members")
 }
 
-model SindicatoVersion {
-  id                    String            @id @default(uuid())
-  tenantId              String
-  sindicatoId           String
-  version               Int
-  validFrom             DateTime
-  validTo               DateTime
-  nombre                String
-  porcentajeAporte      Decimal @default(0.000000)
-  porcentajeContribucion Decimal @default(0.000000)
-  cbu                   String?
-  alias                 String?
-  estado                String            @default("ACTIVO")
-  updatedBy             String
+model EmployeeEmploymentHistory {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  employeeId       String   @map("employee_id") @db.Uuid
+  eventType        String   @map("event_type") @db.VarChar(50)
+  effectiveDate    DateTime @map("effective_date") @db.Date
+  previousSnapshot Json?    @map("previous_snapshot")
+  newSnapshot      Json     @map("new_snapshot")
+  reason           String
+  recordedBy       String   @map("recorded_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant                Tenant            @relation(fields: [tenantId], references: [id])
-  sindicato             Sindicato         @relation(fields: [sindicatoId], references: [id])
-  empleados             EmpleadoVersion[]
-
-  @@index([tenantId])
-  @@index([sindicatoId])
-  @@index([validFrom, validTo])
+  @@unique([tenantId, id])
+  @@map("employee_employment_history")
 }
 
-model ObraSocial {
-  id          String              @id @default(uuid())
-  tenantId    String
-  codigo      String              
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  deletedAt   DateTime?
+model EmployeeLeave {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  companyId            String   @map("company_id") @db.Uuid
+  employeeId           String   @map("employee_id") @db.Uuid
+  supportingDocumentId String?  @map("supporting_document_id") @db.Uuid
+  situationType        String   @map("situation_type") @db.VarChar(40)
+  startDate            DateTime @map("start_date") @db.Date
+  endDate              DateTime @map("end_date") @db.Date
+  daysCount            Int      @map("days_count")
+  isPaid               Boolean  @default(true) @map("is_paid")
+  arcaSituationCode    String   @default("01") @map("arca_situation_code") @db.Char(2)
+  status               String   @default("APPROVED") @db.VarChar(20)
+  observations         String?
+  createdBy            String   @map("created_by") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant      Tenant              @relation(fields: [tenantId], references: [id])
-  versiones   ObraSocialVersion[]
-
-  @@unique([tenantId, codigo])
-  @@index([tenantId])
+  @@unique([tenantId, id])
+  @@map("employee_leaves")
 }
 
-model ObraSocialVersion {
-  id                    String            @id @default(uuid())
-  tenantId              String
-  obraSocialId          String
-  version               Int
-  validFrom             DateTime
-  validTo               DateTime
-  nombre                String
-  porcentajeAporte      Decimal @default(3.000000)
-  porcentajeContribucion Decimal @default(6.000000)
-  estado                String            @default("ACTIVO")
-  updatedBy             String
+model Document {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  companyId             String?  @map("company_id") @db.Uuid
+  employeeId            String?  @map("employee_id") @db.Uuid
+  documentType          String   @map("document_type") @db.VarChar(50)
+  title                 String   @db.VarChar(200)
+  originalFilename      String   @map("original_filename") @db.VarChar(255)
+  storageKey            String   @map("storage_key")
+  mimeType              String   @map("mime_type") @db.VarChar(100)
+  sizeBytes             BigInt   @map("size_bytes")
+  sha256Hash            String   @map("sha256_hash") @db.Char(64)
+  isRestrictedSensitive Boolean  @default(false) @map("is_restricted_sensitive")
+  isImmutable           Boolean  @default(false) @map("is_immutable")
+  uploadedBy            String   @map("uploaded_by") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant                Tenant            @relation(fields: [tenantId], references: [id])
-  obraSocial            ObraSocial        @relation(fields: [obraSocialId], references: [id])
-  empleados             EmpleadoVersion[]
-
-  @@index([tenantId])
-  @@index([obraSocialId])
-  @@index([validFrom, validTo])
+  @@unique([tenantId, id])
+  @@unique([tenantId, companyId, id])
+  @@unique([tenantId, storageKey])
+  @@map("documents")
 }
 
-model EscalaSalarial {
-  id           String            @id @default(uuid())
-  tenantId     String
-  convenioId   String
-  periodo      String            
-  fechaDesde   DateTime
-  fechaHasta   DateTime
-  resolucion   String?
-  pdfOficial   String?
-  observaciones String?
-  version      Int               @default(1)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  deletedAt    DateTime?
+model ImportStagingBatch {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  companyId           String?   @map("company_id") @db.Uuid
+  sourceDocumentId    String?   @map("source_document_id") @db.Uuid
+  importKind          String    @map("import_kind") @db.VarChar(40)
+  status              String    @default("PENDING_REVIEW") @db.VarChar(30)
+  totalRows           Int       @default(0) @map("total_rows")
+  blockingErrorsCount Int       @default(0) @map("blocking_errors_count")
+  warningsCount       Int       @default(0) @map("warnings_count")
+  detectedIssues      Json      @default("[]") @map("detected_issues")
+  uploadedBy          String    @map("uploaded_by") @db.Uuid
+  approvedBy          String?   @map("approved_by") @db.Uuid
+  approvedAt          DateTime? @map("approved_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant       Tenant            @relation(fields: [tenantId], references: [id])
-  convenio     Convenio          @relation(fields: [convenioId], references: [id])
-  categorias   Categoria[]
-  recibos      ReciboSueldo[]
-
-  @@index([tenantId])
-  @@index([convenioId])
-  @@index([periodo])
+  @@unique([tenantId, id])
+  @@map("import_staging_batches")
 }
 
-model Categoria {
-  id           String            @id @default(uuid())
-  escalaId     String
-  nombre       String
-  codigo       String
-  valorHora    Decimal @default(0.000000)
-  valorMensual Decimal @default(0.000000)
-  valorJornada Decimal @default(0.000000)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  deletedAt    DateTime?
+model ImportStagingRow {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String @map("tenant_id") @db.Uuid
+  batchId       String @map("batch_id") @db.Uuid
+  sheetName     String @map("sheet_name") @db.VarChar(80)
+  rowIndex      Int    @map("row_index")
+  targetEntity  String @map("target_entity") @db.VarChar(40)
+  rawData       Json   @map("raw_data")
+  proposedData  Json   @map("proposed_data")
+  correctedData Json?  @map("corrected_data")
+  errors        Json   @default("[]")
+  warnings      Json   @default("[]")
+  rowStatus     String @default("NEEDS_REVIEW") @map("row_status") @db.VarChar(25)
 
-  escala       EscalaSalarial    @relation(fields: [escalaId], references: [id])
-  empleados    EmpleadoVersion[]
-  recibos      ReciboSueldo[]
-
-  @@index([escalaId])
+  @@unique([tenantId, id])
+  @@unique([batchId, sheetName, rowIndex])
+  @@map("import_staging_rows")
 }
 
-// ----------------------------------------------------
-// 3. PARAMETROS DE LIQUIDACIÓN
-// ----------------------------------------------------
-model Parametro {
-  id          String             @id @default(uuid())
-  tenantId    String
-  clave       String             
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  deletedAt   DateTime?
+model EmployeeCustomParameter {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  employeeId    String    @map("employee_id") @db.Uuid
+  parameterCode String    @map("parameter_code") @db.VarChar(60)
+  numericValue  Decimal?  @map("numeric_value") @db.Decimal(18, 6)
+  textValue     String?   @map("text_value")
+  validFrom     DateTime  @map("valid_from") @db.Date
+  validTo       DateTime? @map("valid_to") @db.Date
+  reason        String
+  createdBy     String    @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant      Tenant             @relation(fields: [tenantId], references: [id])
-  versiones   ParametroVersion[]
-
-  @@unique([tenantId, clave])
-  @@index([tenantId])
+  @@unique([tenantId, id])
+  @@unique([tenantId, employeeId, parameterCode, validFrom])
+  @@map("employee_custom_parameters")
 }
 
-model ParametroVersion {
-  id          String    @id @default(uuid())
-  tenantId    String
-  parametroId String
-  version     Int
-  validFrom   DateTime
-  validTo     DateTime
-  valor       Decimal
-  descripcion String?
+// =============================================================================
+// GRUPO 4: PERÍODOS, NOVEDADES, LIQUIDACIONES, RECIBOS, ARCA Y AUDITORÍA (#31 a #41)
+// =============================================================================
 
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
-  parametro   Parametro @relation(fields: [parametroId], references: [id])
+model PayrollPeriod {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @map("tenant_id") @db.Uuid
+  companyId            String    @map("company_id") @db.Uuid
+  year                 Int
+  month                Int
+  periodCode           String    @map("period_code") @db.Char(7)
+  liquidationModality  String    @map("liquidation_modality") @db.VarChar(30)
+  paymentFrequency     String    @map("payment_frequency") @db.VarChar(20)
+  arcaSequenceNumber   Int       @default(1) @map("arca_sequence_number")
+  accrualStartDate     DateTime  @map("accrual_start_date") @db.Date
+  accrualEndDate       DateTime  @map("accrual_end_date") @db.Date
+  closingDate          DateTime  @map("closing_date") @db.Date
+  legalDueDate         DateTime  @map("legal_due_date") @db.Date
+  scheduledPaymentDate DateTime  @map("scheduled_payment_date") @db.Date
+  effectivePaymentDate DateTime? @map("effective_payment_date") @db.Date
+  complianceStatus     String    @default("ON_TIME") @map("compliance_status") @db.VarChar(25)
+  periodStatus         String    @default("OPEN") @map("period_status") @db.VarChar(20)
+  createdBy            String    @map("created_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@index([tenantId])
-  @@index([parametroId])
-  @@index([validFrom, validTo])
+  @@unique([tenantId, id])
+  @@unique([tenantId, companyId, id])
+  @@unique([tenantId, companyId, year, month, liquidationModality, arcaSequenceNumber])
+  @@map("payroll_periods")
 }
 
-// ----------------------------------------------------
-// 4. MAESTRO DE CONCEPTOS (Versionado)
-// ----------------------------------------------------
-model Concepto {
-  id          String            @id @default(uuid())
-  tenantId    String
-  codigo      String            
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  deletedAt   DateTime?
+model PayrollNovelty {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String    @map("tenant_id") @db.Uuid
+  companyId                String    @map("company_id") @db.Uuid
+  periodId                 String    @map("period_id") @db.Uuid
+  employeeId               String    @map("employee_id") @db.Uuid
+  noveltyTypeId            String    @map("novelty_type_id") @db.Uuid
+  attachmentDocumentId     String?   @map("attachment_document_id") @db.Uuid
+  quantity                 Decimal   @default(0) @db.Decimal(12, 4)
+  unit                     String    @db.VarChar(20)
+  unitOrFixedAmount        Decimal   @default(0) @map("unit_or_fixed_amount") @db.Decimal(18, 6)
+  noveltyDate              DateTime? @map("novelty_date") @db.Date
+  retroactiveAccrualPeriod String?   @map("retroactive_accrual_period") @db.Char(7)
+  observation              String?
+  justification            String?
+  status                   String    @default("CONFIRMED") @db.VarChar(20)
+  createdBy                String    @map("created_by") @db.Uuid
+  updatedBy                String    @map("updated_by") @db.Uuid
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenant      Tenant            @relation(fields: [tenantId], references: [id])
-  versiones   ConceptoVersion[]
-
-  @@unique([tenantId, codigo])
-  @@index([tenantId])
-  @@index([codigo])
+  @@unique([tenantId, id])
+  @@map("payroll_novelties")
 }
 
-model ConceptoVersion {
-  id              String            @id @default(uuid())
-  tenantId        String
-  conceptoId      String
-  version         Int
-  validFrom       DateTime
-  validTo         DateTime
-  nombre          String
-  tipo            TipoConcepto
-  formula         String            
-  ordenImpresion  Int               @default(100)
-  activo          Boolean           @default(true)
-  codigoAfip      String?           
-  updatedBy       String
+model Payroll {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                   String    @map("tenant_id") @db.Uuid
+  companyId                  String    @map("company_id") @db.Uuid
+  periodId                   String    @map("period_id") @db.Uuid
+  rectifiesPayrollId         String?   @map("rectifies_payroll_id") @db.Uuid
+  version                    Int       @default(1)
+  liquidationModality        String    @map("liquidation_modality") @db.VarChar(30)
+  status                     String    @default("DRAFT") @db.VarChar(25)
+  employeesCount             Int       @default(0) @map("employees_count")
+  totalHours                 Decimal   @default(0) @map("total_hours") @db.Decimal(14, 2)
+  totalRemunerative          Decimal   @default(0) @map("total_remunerative") @db.Decimal(18, 2)
+  totalNonRemunerative       Decimal   @default(0) @map("total_non_remunerative") @db.Decimal(18, 2)
+  totalDeductions            Decimal   @default(0) @map("total_deductions") @db.Decimal(18, 2)
+  totalNetPay                Decimal   @default(0) @map("total_net_pay") @db.Decimal(18, 2)
+  totalEmployerContributions Decimal   @default(0) @map("total_employer_contributions") @db.Decimal(18, 2)
+  totalEmployerCost          Decimal   @default(0) @map("total_employer_cost") @db.Decimal(18, 2)
+  engineVersion              String    @map("engine_version") @db.VarChar(20)
+  globalContextSnapshot      Json      @default("{}") @map("global_context_snapshot")
+  isImmutable                Boolean   @default(false) @map("is_immutable")
+  calculatedBy               String    @map("calculated_by") @db.Uuid
+  calculatedAt               DateTime  @default(now()) @map("calculated_at") @db.Timestamptz(6)
+  approvedBy                 String?   @map("approved_by") @db.Uuid
+  approvedAt                 DateTime? @map("approved_at") @db.Timestamptz(6)
 
-  tenant          Tenant            @relation(fields: [tenantId], references: [id])
-  concepto        Concepto          @relation(fields: [conceptoId], references: [id])
-  recibosDetalles ReciboDetalle[]
-
-  @@index([tenantId])
-  @@index([conceptoId])
-  @@index([validFrom, validTo])
+  @@unique([tenantId, id])
+  @@unique([tenantId, companyId, id])
+  @@unique([tenantId, companyId, periodId, id])
+  @@unique([tenantId, periodId, version])
+  @@map("payrolls")
 }
 
-// ----------------------------------------------------
-// 5. EMPLEADOS (Versionado)
-// ----------------------------------------------------
-model Empleado {
-  id          String            @id @default(uuid())
-  tenantId    String
-  clienteId   String
-  cuil        String            @unique
-  dni         String            @unique
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  deletedAt   DateTime?
-  deletedBy   String?
+model Payslip {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  companyId            String   @map("company_id") @db.Uuid
+  payrollId            String   @map("payroll_id") @db.Uuid
+  employeeId           String   @map("employee_id") @db.Uuid
+  receiptCode          String   @map("receipt_code") @db.VarChar(40)
+  currentVersionNumber Int      @default(1) @map("current_version_number")
+  status               String   @default("DRAFT") @db.VarChar(25)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenant            Tenant            @relation(fields: [tenantId], references: [id])
-  cliente           Cliente           @relation(fields: [clienteId], references: [id])
-  versiones         EmpleadoVersion[]
-  embargos          Embargo[]
-  vacaciones  Vacacion[]
-  recibos     ReciboSueldo[]
-  novedades         NovedadMensual[]
-
-  @@index([tenantId])
-  @@index([clienteId])
-  @@index([cuil])
-  @@index([dni])
+  @@unique([tenantId, id])
+  @@unique([tenantId, companyId, employeeId, id])
+  @@unique([tenantId, payrollId, employeeId])
+  @@unique([tenantId, companyId, receiptCode])
+  @@map("payslips")
 }
 
-model EmpleadoVersion {
-  id                    String            @id @default(uuid())
-  tenantId              String
-  empleadoId            String
-  version               Int
-  validFrom             DateTime
-  validTo               DateTime
-  legajo                String
-  apellido              String
-  nombre                String
-  sexo                  String
-  fechaNacimiento       DateTime
-  estadoCivil           String
-  nacionalidad          String
-  direccion             String
-  provincia             String
-  localidad             String
-  codigoPostal          String
-  email                 String
-  telefono              String?
-  contactoEmergencia    String?
-  grupoSanguineo        String?
-  nivelEducativo        String?
-  profesion             String?
-  discapacidad          Boolean           @default(false)
-  licenciaConducir      String?
-  fotoUrl               String?
-  firmaUrl              String?
+model PayslipVersion {
+  id                            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                      String   @map("tenant_id") @db.Uuid
+  companyId                     String   @map("company_id") @db.Uuid
+  employeeId                    String   @map("employee_id") @db.Uuid
+  payslipId                     String   @map("payslip_id") @db.Uuid
+  companyVersionId              String   @map("company_version_id") @db.Uuid
+  employeeVersionId             String   @map("employee_version_id") @db.Uuid
+  salaryScaleId                 String   @map("salary_scale_id") @db.Uuid
+  categoryId                    String   @map("category_id") @db.Uuid
+  pdfDocumentId                 String?  @map("pdf_document_id") @db.Uuid
+  rectifiesVersionId            String?  @map("rectifies_version_id") @db.Uuid
+  versionNumber                 Int      @default(1) @map("version_number")
+  remunerationModality          String   @map("remuneration_modality") @db.VarChar(20)
+  remunerationUnit              String   @map("remuneration_unit") @db.VarChar(20)
+  paymentFrequency              String   @map("payment_frequency") @db.VarChar(20)
+  workedDays                    Decimal  @default(0) @map("worked_days") @db.Decimal(8, 2)
+  workedHours                   Decimal  @default(0) @map("worked_hours") @db.Decimal(8, 2)
+  seniorityYears                Int      @default(0) @map("seniority_years")
+  referenceRate                 Decimal  @default(0) @map("reference_rate") @db.Decimal(18, 6)
+  exactRemunerativeSum          Decimal  @default(0) @map("exact_remunerative_sum") @db.Decimal(18, 6)
+  totalRemunerative             Decimal  @default(0) @map("total_remunerative") @db.Decimal(18, 2)
+  exactNonRemunerativeSum       Decimal  @default(0) @map("exact_non_remunerative_sum") @db.Decimal(18, 6)
+  totalNonRemunerative          Decimal  @default(0) @map("total_non_remunerative") @db.Decimal(18, 2)
+  exactDeductionsSum            Decimal  @default(0) @map("exact_deductions_sum") @db.Decimal(18, 6)
+  totalDeductions               Decimal  @default(0) @map("total_deductions") @db.Decimal(18, 2)
+  preliminaryNetPay             Decimal  @default(0) @map("preliminary_net_pay") @db.Decimal(18, 2)
+  explicitRoundingAdjustment    Decimal  @default(0) @map("explicit_rounding_adjustment") @db.Decimal(18, 2)
+  netPay                        Decimal  @default(0) @map("net_pay") @db.Decimal(18, 2)
+  netPayInWords                 String   @map("net_pay_in_words")
+  exactEmployerContributionsSum Decimal  @default(0) @map("exact_employer_contributions_sum") @db.Decimal(18, 6)
+  totalEmployerContributions    Decimal  @default(0) @map("total_employer_contributions") @db.Decimal(18, 2)
+  totalEmployerCost             Decimal  @default(0) @map("total_employer_cost") @db.Decimal(18, 2)
+  costCompositionChart          Json     @default("[]") @map("cost_composition_chart")
+  calculationSnapshot           Json     @map("calculation_snapshot")
+  sha256Hash                    String   @map("sha256_hash") @db.Char(64)
+  isImmutable                   Boolean  @default(false) @map("is_immutable")
+  createdAt                     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  // Datos Laborales
-  fechaIngreso          DateTime
-  fechaEgreso           DateTime?
-  motivoBaja            String?
-  tipoContrato          String            
-  modalidad             String            
-  sucursalId            String
-  convenioVersionId     String
-  categoriaId           String
-  centroCosto           String?
-  jornada               String
-  horasSemanales        Decimal @default(44.000000)
-  obraSocialVersionId   String
-  sindicatoVersionId    String? 
-  banco                 String?
-  cbu                   String?
-  alias                 String?
-  formaPago             String            
-  estado                String            @default("ACTIVO") 
-
-  // Seguros
-  seguroVida            Boolean           @default(false)
-  seguroRetiro          Boolean           @default(false)
-
-  // Control de EPP / Capacitaciones
-  uniformesEntregados   String?
-  eppEntregados         String?
-  cursosCapacitaciones  String?
-  examenesPreocupacionales String?
-
-  // AFIP
-  afipEstado            String            @default("ACTIVO")
-  afipAltaTemprana      Boolean           @default(false)
-  afipBaja              Boolean           @default(false)
-  afipCondicion         String
-  afipSituacionRevista  String
-  afipCodigoModalidad   String
-  afipCodigoActividad   String
-  afipCodigoPuesto      String
-  updatedBy             String
-  deletedAt             DateTime?
-  deletedBy             String?
-
-  tenant                Tenant            @relation(fields: [tenantId], references: [id])
-  empleado              Empleado          @relation(fields: [empleadoId], references: [id])
-  sucursal              Sucursal          @relation(fields: [sucursalId], references: [id])
-  convenioVersion       ConvenioVersion   @relation(fields: [convenioVersionId], references: [id])
-  categoria             Categoria         @relation(fields: [categoriaId], references: [id])
-  obraSocialVersion     ObraSocialVersion @relation(fields: [obraSocialVersionId], references: [id])
-  sindicatoVersion      SindicatoVersion? @relation(fields: [sindicatoVersionId], references: [id])
-  recibosHistoricos     ReciboSueldo[]
-
-  @@index([tenantId])
-  @@index([empleadoId])
-  @@index([validFrom, validTo])
+  @@unique([tenantId, id])
+  @@unique([payslipId, versionNumber])
+  @@map("payslip_versions")
 }
 
-// ----------------------------------------------------
-// 6. OPERACIONES (Embargos, Vacaciones y Novedades)
-// ----------------------------------------------------
-model Embargo {
-  id            String    @id @default(uuid())
-  tenantId      String
-  empleadoId    String
-  juzgado       String
-  expediente    String
-  tipo          String    // FIJO, PORCENTAJE
-  montoFijo     Decimal @default(0.000000)
-  porcentaje    Decimal @default(0.000000) 
-  prioridad     Int       @default(1)   
-  fechaInicio   DateTime
-  fechaFin      DateTime?
-  estado        String    @default("ACTIVO") 
-  observaciones String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
+model PayrollItem {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String   @map("tenant_id") @db.Uuid
+  payslipVersionId         String   @map("payslip_version_id") @db.Uuid
+  conceptId                String   @map("concept_id") @db.Uuid
+  ruleId                   String?  @map("rule_id") @db.Uuid
+  scaleItemId              String?  @map("scale_item_id") @db.Uuid
+  conceptCode              String   @map("concept_code") @db.VarChar(30)
+  conceptName              String   @map("concept_name") @db.VarChar(150)
+  itemNature               String   @map("item_nature") @db.VarChar(25)
+  isExplicitRoundingItem   Boolean  @default(false) @map("is_explicit_rounding_item")
+  unit                     String   @db.VarChar(20)
+  quantity                 Decimal  @default(1) @db.Decimal(12, 4)
+  calculationBase          Decimal  @default(0) @map("calculation_base") @db.Decimal(18, 6)
+  percentageApplied        Decimal? @map("percentage_applied") @db.Decimal(10, 6)
+  exactAmount              Decimal  @map("exact_amount") @db.Decimal(18, 6)
+  roundedAmount            Decimal  @map("rounded_amount") @db.Decimal(18, 2)
+  roundingDelta            Decimal  @default(0) @map("rounding_delta") @db.Decimal(18, 6)
+  retroactiveAccrualPeriod String?  @map("retroactive_accrual_period") @db.Char(7)
+  formulaApplied           String   @map("formula_applied")
+  normativeTrace           Json     @default("{}") @map("normative_trace")
+  printOrder               Int      @default(100) @map("print_order")
 
-  tenant        Tenant    @relation(fields: [tenantId], references: [id])
-  empleado      Empleado  @relation(fields: [empleadoId], references: [id])
-
-  @@index([tenantId])
-  @@index([empleadoId])
-  @@index([estado])
+  @@unique([tenantId, id])
+  @@map("payroll_items")
 }
 
-model Vacacion {
-  id              String    @id @default(uuid())
-  tenantId        String
-  empleadoId      String
-  periodo         String    
-  diasDisponibles Int
-  diasGozados     Int       @default(0)
-  saldo           Int
-  fechaInicio     DateTime?
-  fechaFin        DateTime?
-  pagoAnticipado  Boolean   @default(false)
-  estado          String    @default("PENDIENTE") 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+model PayrollDeduction {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  payslipVersionId  String   @map("payslip_version_id") @db.Uuid
+  conceptId         String   @map("concept_id") @db.Uuid
+  ruleId            String?  @map("rule_id") @db.Uuid
+  conceptCode       String   @map("concept_code") @db.VarChar(30)
+  conceptName       String   @map("concept_name") @db.VarChar(150)
+  unit              String   @db.VarChar(20)
+  quantity          Decimal  @default(1) @db.Decimal(12, 4)
+  grossBase         Decimal  @default(0) @map("gross_base") @db.Decimal(18, 6)
+  capApplied        Decimal? @map("cap_applied") @db.Decimal(18, 2)
+  taxableBase       Decimal  @default(0) @map("taxable_base") @db.Decimal(18, 6)
+  percentageApplied Decimal? @map("percentage_applied") @db.Decimal(10, 6)
+  exactAmount       Decimal  @map("exact_amount") @db.Decimal(18, 6)
+  roundedAmount     Decimal  @map("rounded_amount") @db.Decimal(18, 2)
+  roundingDelta     Decimal  @default(0) @map("rounding_delta") @db.Decimal(18, 6)
+  formulaApplied    String   @map("formula_applied")
+  normativeTrace    Json     @default("{}") @map("normative_trace")
+  printOrder        Int      @default(100) @map("print_order")
 
-  tenant          Tenant    @relation(fields: [tenantId], references: [id])
-  empleado        Empleado  @relation(fields: [empleadoId], references: [id])
-
-  @@index([tenantId])
-  @@index([empleadoId])
-  @@index([periodo])
+  @@unique([tenantId, id])
+  @@map("payroll_deductions")
 }
 
-model NovedadMensual {
-  id                  String    @id @default(uuid())
-  empleadoId          String
-  periodo             String    
-  quincena            Int       @default(0)
-  
-  horasNormales       Decimal @default(0.000000)
-  horasExtras50       Decimal @default(0.000000)
-  horasExtras100      Decimal @default(0.000000)
-  feriadosTrabajados  Decimal @default(0.000000)
-  horasNocturnas      Decimal @default(0.000000)
-  ausencias           Int       @default(0)
-  llegadasTarde       Int       @default(0)
-  diasLicencia        Int       @default(0)
-  diasVacaciones      Int       @default(0)
-  
-  adelantos           Decimal @default(0.000000)
-  bonos               Decimal @default(0.000000)
-  premios             Decimal @default(0.000000)
-  comisiones          Decimal @default(0.000000)
-  viaticos            Decimal @default(0.000000)
-  sancionesDescuento  Decimal @default(0.000000)
-  otrosDescuentos     Decimal @default(0.000000)
-  conceptosNoRem      Decimal @default(0.000000)
-  observaciones       String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+model EmployerContribution {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  payslipVersionId  String   @map("payslip_version_id") @db.Uuid
+  conceptId         String   @map("concept_id") @db.Uuid
+  ruleId            String?  @map("rule_id") @db.Uuid
+  conceptCode       String   @map("concept_code") @db.VarChar(30)
+  conceptName       String   @map("concept_name") @db.VarChar(150)
+  costGroup         String   @map("cost_group") @db.VarChar(30)
+  grossBase         Decimal  @default(0) @map("gross_base") @db.Decimal(18, 6)
+  detractionApplied Decimal  @default(0) @map("detraction_applied") @db.Decimal(18, 2)
+  taxableBase       Decimal  @default(0) @map("taxable_base") @db.Decimal(18, 6)
+  percentageApplied Decimal? @map("percentage_applied") @db.Decimal(10, 6)
+  fixedAmount       Decimal? @map("fixed_amount") @db.Decimal(18, 2)
+  exactAmount       Decimal  @map("exact_amount") @db.Decimal(18, 6)
+  roundedAmount     Decimal  @map("rounded_amount") @db.Decimal(18, 2)
+  roundingDelta     Decimal  @default(0) @map("rounding_delta") @db.Decimal(18, 6)
+  formulaApplied    String   @map("formula_applied")
+  normativeTrace    Json     @default("{}") @map("normative_trace")
+  printOrder        Int      @default(100) @map("print_order")
 
-  empleado            Empleado  @relation(fields: [empleadoId], references: [id])
-
-  @@unique([empleadoId, periodo, quincena])
-  @@index([empleadoId])
+  @@unique([tenantId, id])
+  @@map("employer_contributions")
 }
 
-model CalendarioLaboral {
-  id          String    @id @default(uuid())
-  tenantId    String
-  fecha       DateTime
-  nombre      String
-  tipo        String    
-  provincia   String?
-  localidad   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+model ArcaConceptMapping {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String    @map("tenant_id") @db.Uuid
+  companyId               String?   @map("company_id") @db.Uuid
+  conceptId               String    @map("concept_id") @db.Uuid
+  employerConceptCode     String    @map("employer_concept_code") @db.Char(10)
+  arcaOfficialCode        String    @map("arca_official_code") @db.Char(6)
+  debitCreditFlag         String    @map("debit_credit_flag") @db.Char(1)
+  unitFlag                String    @map("unit_flag") @db.Char(1)
+  sipaAportesFlag         String    @map("sipa_aportes_flag") @db.Char(1)
+  sipaContribFlag         String    @map("sipa_contrib_flag") @db.Char(1)
+  inssjpAportesFlag       String    @map("inssjp_aportes_flag") @db.Char(1)
+  inssjpContribFlag       String    @map("inssjp_contrib_flag") @db.Char(1)
+  osAportesFlag           String    @map("os_aportes_flag") @db.Char(1)
+  osContribFlag           String    @map("os_contrib_flag") @db.Char(1)
+  fsrFlag                 String    @map("fsr_flag") @db.Char(1)
+  renatreFlag             String    @map("renatre_flag") @db.Char(1)
+  lrtArtFlag              String    @map("lrt_art_flag") @db.Char(1)
+  regimenesEspecialesFlag String    @map("regimenes_especiales_flag") @db.Char(1)
+  validFrom               DateTime  @map("valid_from") @db.Date
+  validTo                 DateTime? @map("valid_to") @db.Date
+  validationStatus        String    @default("VALIDATED") @map("validation_status") @db.VarChar(25)
 
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
-
-  @@unique([tenantId, fecha])
-  @@index([tenantId])
-  @@index([fecha])
+  @@unique([tenantId, id])
+  @@map("arca_concept_mappings")
 }
 
-// ----------------------------------------------------
-// 7. PROCESO DE LIQUIDACIÓN Y TRANSICIONES DE WORKFLOW
-// ----------------------------------------------------
-model Liquidacion {
-  id              String            @id @default(uuid())
-  tenantId        String
-  clienteId       String
-  periodo         String            
-  quincena        Int
-  tipo            String            
-  estado          EstadoWorkflow    @default(BORRADOR)
-  fechaLiquidacion DateTime          @default(now())
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  deletedAt       DateTime?
+model ArcaExport {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  companyId             String   @map("company_id") @db.Uuid
+  payrollId             String   @map("payroll_id") @db.Uuid
+  txtDocumentId         String?  @map("txt_document_id") @db.Uuid
+  periodYyyymm          String   @map("period_yyyymm") @db.Char(6)
+  submissionType        String   @map("submission_type") @db.Char(2)
+  liquidationType       String   @map("liquidation_type") @db.Char(1)
+  liquidationNumber     Int      @map("liquidation_number")
+  employeesCount        Int      @map("employees_count")
+  validationStatus      String   @map("validation_status") @db.VarChar(25)
+  inconsistenciesReport Json     @default("[]") @map("inconsistencies_report")
+  officialSpecVersion   String   @map("official_spec_version") @db.VarChar(50)
+  sha256Hash            String?  @map("sha256_hash") @db.Char(64)
+  exportedBy            String   @map("exported_by") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant          Tenant            @relation(fields: [tenantId], references: [id])
-  cliente         Cliente           @relation(fields: [clienteId], references: [id])
-  recibos         ReciboSueldo[]
-  workflowLogs    WorkflowLog[]
-
-  @@unique([clienteId, periodo, quincena, tipo])
-  @@index([tenantId])
-  @@index([clienteId])
+  @@unique([tenantId, id])
+  @@map("arca_exports")
 }
 
-model WorkflowLog {
-  id            String          @id @default(uuid())
-  tenantId      String
-  liquidacionId String
-  estadoOrigen  EstadoWorkflow
-  estadoDestino EstadoWorkflow
-  comentario    String?
-  userId        String
-  createdAt     DateTime        @default(now())
-
-  tenant        Tenant          @relation(fields: [tenantId], references: [id])
-  liquidacion   Liquidacion     @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
-  @@index([liquidacionId])
-}
-
-model ReciboSueldo {
-  id                      String          @id @default(uuid())
-  liquidacionId           String
-  clienteId               String
-  empleadoId              String
-  
-  // Trazabilidad temporal estricta
-  empleadoVersionId       String
-  clienteVersionId        String
-  convenioVersionId       String
-  escalaId                String
-  categoriaId             String
-  
-  // Rectificaciones y Ajustes
-  rectificaReciboId       String? @unique
-  rectificaRecibo         ReciboSueldo?   @relation("Rectificaciones", fields: [rectificaReciboId], references: [id])
-  rectificadoPorRecibo    ReciboSueldo?   @relation("Rectificaciones")
-
-  cuil                    String
-  cuit                    String
-  periodo                 String
-  quincena                Int
-  basicoAplicado          Decimal
-  antiguedadAnos          Int
-  
-  // Totales de Liquidación en Decimales
-  totalRemunerativo       Decimal @default(0.000000)
-  totalNoRemunerativo     Decimal @default(0.000000)
-  totalDescuentos         Decimal @default(0.000000)
-  totalNeto               Decimal @default(0.000000)
-  costoLaboralTotal       Decimal @default(0.000000) 
-  totalContribuciones     Decimal @default(0.000000) 
-  
-  // Seguridad y firma digital
-  uniqueCode              String          @unique
-  hashSha256              String          
-  reciboVersion           Int             @default(1)
-  firmaDigital            String?
-  xmlData                 String? 
-  fechaImpresion          DateTime?
-  cantidadImpresiones     Int             @default(0)
-  estado                  String          @default("EMITIDO") 
-  fechaPago               DateTime
-  bancoPago               String?
-  cbuPago                 String?
-  pdfUrl                  String?
-  
-  createdAt               DateTime        @default(now())
-  updatedAt               DateTime        @updatedAt
-
-  // Relaciones
-  liquidacion             Liquidacion     @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
-  cliente                 Cliente         @relation(fields: [clienteId], references: [id])
-  empleado                Empleado        @relation(fields: [empleadoId], references: [id])
-  empleadoVersion         EmpleadoVersion @relation(fields: [empleadoVersionId], references: [id])
-  clienteVersion          ClienteVersion  @relation(fields: [clienteVersionId], references: [id])
-  convenioVersion         ConvenioVersion @relation(fields: [convenioVersionId], references: [id])
-  escala                  EscalaSalarial  @relation(fields: [escalaId], references: [id])
-  categoria               Categoria       @relation(fields: [categoriaId], references: [id])
-  detalles                ReciboDetalle[]
-
-  @@index([liquidacionId])
-  @@index([empleadoId])
-  @@index([periodo])
-  @@index([uniqueCode])
-}
-
-model ReciboDetalle {
-  id                String          @id @default(uuid())
-  reciboId          String
-  conceptoVersionId String 
-  conceptoCodigo    String
-  conceptoNombre    String
-  tipo              TipoConcepto
-  cantidad          Decimal @default(0.000000)
-  valorUnitario     Decimal @default(0.000000)
-  subtotal          Decimal @default(0.000000)
-  formulaAplicada   String? 
-  porcentajeAplicado Decimal? @default(0.000000) 
-  createdAt         DateTime        @default(now())
-
-  recibo            ReciboSueldo    @relation(fields: [reciboId], references: [id], onDelete: Cascade)
-  conceptoVersion   ConceptoVersion @relation(fields: [conceptoVersionId], references: [id])
-
-  @@index([reciboId])
-}
-
-// ----------------------------------------------------
-// 8. AUDITORÍA EXHAUSTIVA
-// ----------------------------------------------------
 model AuditLog {
-  id            String    @id @default(uuid())
-  tenantId      String?
-  userId        String?
-  userEmail     String?
-  action        String    
-  modulo        String    
-  tabla         String?
-  recordId      String?
-  valorAnterior String?
-  valorNuevo    String?
-  ip            String?
-  userAgent     String?
-  createdAt     DateTime  @default(now())
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  action         String   @db.VarChar(80)
+  module         String   @db.VarChar(50)
+  targetTable    String   @map("target_table") @db.VarChar(60)
+  targetId       String?  @map("target_id") @db.Uuid
+  outcome        String   @db.VarChar(20)
+  previousValues Json?    @map("previous_values")
+  newValues      Json?    @map("new_values")
+  ipAddress      String?  @map("ip_address") @db.VarChar(45)
+  userAgent      String?  @map("user_agent")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant        Tenant?   @relation(fields: [tenantId], references: [id])
-  usuario       User?     @relation(fields: [userId], references: [id])
-
-  @@index([tenantId])
-  @@index([userId])
-  @@index([createdAt])
+  @@unique([tenantId, id])
+  @@map("audit_logs")
 }

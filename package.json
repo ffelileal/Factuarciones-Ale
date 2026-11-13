@@ -1,36 +1,45 @@
 {
-  "name": "ar-payroll",
-  "version": "0.1.0",
+  "name": "ar-payroll-monorepo",
+  "version": "1.0.0",
   "private": true,
+  "description": "Sistema Integral de Gestión de Personal y Liquidación de Sueldos - Argentina (Multi-Tenant + PostgreSQL RLS + Tauri 2)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "postinstall": "prisma generate"
+    "dev": "npx tsx scripts/dev-all.ts",
+    "db:start": "npx tsx scripts/pg-service.ts start",
+    "db:stop": "npx tsx scripts/pg-service.ts stop",
+    "db:status": "npx tsx scripts/pg-service.ts status",
+    "dev:api": "npx tsx scripts/pg-service.ts ensure && npm --workspace=@ar-payroll/api run dev",
+    "dev:desktop": "npm --workspace=@ar-payroll/desktop run dev",
+    "build:contracts": "npm --workspace=@ar-payroll/contracts run build",
+    "build:api": "npm --workspace=@ar-payroll/api run build",
+    "build:desktop": "npm --workspace=@ar-payroll/desktop run build",
+    "db:migrate": "npx tsx scripts/pg-service.ts ensure && npx tsx scripts/apply-migrations.ts",
+    "db:seed": "npx tsx scripts/pg-service.ts ensure && npx tsx prisma/seed.ts",
+    "user:create-master": "npx tsx scripts/create-master-user.ts",
+    "backup:create": "npx tsx scripts/pg-service.ts ensure && npx tsx scripts/backup-full-encrypted.ts",
+    "backup:restore": "npx tsx scripts/pg-service.ts ensure && npx tsx scripts/restore-and-verify.ts",
+    "test": "npx tsx scripts/pg-service.ts ensure && vitest run --no-file-parallelism --dir apps/api",
+    "test:phase2": "npx tsx scripts/pg-service.ts ensure && vitest run --no-file-parallelism --dir apps/api"
   },
   "dependencies": {
-    "@libsql/client": "^0.17.4",
-    "@prisma/adapter-libsql": "^7.9.0",
-    "@prisma/client": "^7.9.0",
+    "@prisma/client": "^6.4.1",
     "decimal.js": "^10.6.0",
-    "next": "16.2.11",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "zod": "^4.4.3"
+    "fastify": "^5.2.1",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/rate-limit": "^10.2.1",
+    "pg": "^8.13.3",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20.19.43",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.11",
-    "prisma": "^7.9.0",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  },
-  "prisma": {
-    "seed": "npx tsx prisma/seed.ts"
+    "@types/node": "^22.13.4",
+    "@types/pg": "^8.11.11",
+    "prisma": "^6.4.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.6"
   }
 }

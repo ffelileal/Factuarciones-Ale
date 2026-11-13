@@ -1,0 +1,13 @@
+{
+  "backupId": "ar_payroll_full_2026-11-13T21-02-00-454Z",
+  "createdAt": "2026-11-13T21:02:06.003Z",
+  "database": "ar_payroll",
+  "algorithm": "AES-256-GCM",
+  "ivHex": "2be3983e711406d16d9ce90d",
+  "authTagHex": "3b7d9f99188a16e9cb676b88ca66ed90",
+  "plaintextSha256": "82e0163ddd785b3687ec1ecade9efed65fc7c10beb9a202fc10d1af9b63cc037",
+  "ciphertextSha256": "644e5fd724ea1a85dbb201aeb0d87f9e106122ce2426835b8e44acce84bded73",
+  "plaintextBytes": 3118117,
+  "ciphertextBytes": 3118117,
+  "encryptedFilePath": "C:\\Users\\crale\\.gemini\\antigravity\\scratch\\ar-payroll\\backups\\test-run\\ar_payroll_full_2026-11-13T21-02-00-454Z.dump.enc"
+}
