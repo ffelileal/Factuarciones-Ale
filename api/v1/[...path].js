@@ -4,14 +4,18 @@ module.exports = async function handler(request, response) {
     const app = buildServer();
     await app.ready();
 
-    const chunks = [];
-    for await (const chunk of request) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    let payload = request.body;
+    if (typeof payload === 'string' && payload.length > 0) {
+      payload = JSON.parse(payload);
     }
-
-    let payload;
-    if (chunks.length > 0) {
-      payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (payload === undefined) {
+      const chunks = [];
+      for await (const chunk of request) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      if (chunks.length > 0) {
+        payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      }
     }
 
     const result = await app.inject({
