@@ -1,46 +1,51 @@
 module.exports = async function handler(request, response) {
   try {
-    const { buildServer } = await import('../../../apps/api/dist/server.js');
-    const app = buildServer();
-    await app.ready();
-
-    let payload = request.body;
-    if (payload === undefined) {
+    let body = request.body;
+    if (typeof body === 'string' && body.length > 0) {
+      body = JSON.parse(body);
+    } else if (body === undefined) {
       const chunks = [];
       for await (const chunk of request) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
       if (chunks.length > 0) {
-        payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
       }
     }
+    if (!body || typeof body !== 'object') {
+      response.statusCode = 400;
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify({
+        error: 'ValidationError',
+        message: 'El cuerpo de la solicitud debe ser un objeto JSON.',
+      }));
+      return;
+    }
 
-    const result = await app.inject({
-      method: request.method,
-      url: '/api/v1/auth/login',
-      headers: request.headers,
-      payload,
+    const [{ LoginRequestSchema }, { authService }] = await Promise.all([
+      import('../../../packages/contracts/dist/index.js'),
+      import('../../../apps/api/dist/services/auth.service.js'),
+    ]);
+    const parsed = LoginRequestSchema.parse(body);
+    const result = await authService.login({
+      email: parsed.email,
+      password: parsed.password,
+      deviceName: parsed.deviceName ?? 'Vercel Web Client',
+      ipAddress: request.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ?? '127.0.0.1',
     });
 
-    response.statusCode = result.statusCode;
-    for (const [name, value] of Object.entries(result.headers)) {
-      if (value !== undefined) response.setHeader(name, value);
-    }
-    response.end(result.body);
-  } catch (error) {
-    response.statusCode = 500;
+    response.statusCode = 200;
     response.setHeader('Content-Type', 'application/json');
-    const bodyType = typeof request.body;
-    const bodyLength = typeof request.body === 'string'
-      ? request.body.length
-      : request.body && typeof request.body === 'object'
-        ? Object.keys(request.body).length
-        : 0;
-    const bodyConstructor = request.body?.constructor?.name ?? 'undefined';
+    response.end(JSON.stringify(result));
+  } catch (error) {
+    const statusCode =
+      typeof error?.statusCode === 'number' ? error.statusCode :
+      error?.name === 'ZodError' ? 400 : 500;
+    response.setHeader('Content-Type', 'application/json');
+    response.statusCode = statusCode;
     response.end(JSON.stringify({
-      error: 'LoginHandlerError',
+      error: error?.name ?? 'LoginHandlerError',
       message: error instanceof Error ? error.message : 'No se pudo iniciar el login.',
-      diagnostic: { bodyType, bodyLength, bodyConstructor },
     }));
   }
 };
