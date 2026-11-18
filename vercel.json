@@ -3,17 +3,10 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build:web",
   "outputDirectory": "apps/desktop/dist",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/((?!api(?:/|$)).*)",
+      "destination": "/index.html"
     }
   ]
 }
