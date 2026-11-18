@@ -5,9 +5,6 @@ module.exports = async function handler(request, response) {
     await app.ready();
 
     let payload = request.body;
-    if (typeof payload === 'string' && payload.length > 0) {
-      payload = JSON.parse(payload);
-    }
     if (payload === undefined) {
       const chunks = [];
       for await (const chunk of request) {
