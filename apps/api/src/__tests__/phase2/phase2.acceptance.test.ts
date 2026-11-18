@@ -565,32 +565,21 @@ describe('FASE 2 — Suite Integral de Verificación Arquitectónica (Subfases 2
   });
 
   // =========================================================================
-  // SUBFASE 2C: CLIENTE DE ESCRITORIO TAURI 2 Y WINDOWS CREDENTIAL MANAGER
+  // SUBFASE 2C: CLIENTE WEB Y ALMACENAMIENTO DE SESION
   // =========================================================================
-  describe('Subfase 2C: Cliente Tauri 2 + React 19 y Almacenamiento Seguro de Credenciales', () => {
-    it('Verifica que el cliente de escritorio utiliza comandos Tauri keyring y no persiste tokens en localStorage ni sessionStorage', () => {
+  describe('Subfase 2C: Cliente Web + React 19 y Almacenamiento Seguro de Sesion', () => {
+    it('Verifica que el cliente web usa sessionStorage y no incluye dependencias Tauri', () => {
       const credStorePath = path.resolve(
         __dirname,
         '../../../../../apps/desktop/src/lib/credentialStore.ts',
       );
-      const rustMainPath = path.resolve(
-        __dirname,
-        '../../../../../apps/desktop/src-tauri/src/main.rs',
-      );
-
       const tsSource = fs.readFileSync(credStorePath, 'utf8');
-      const rustSource = fs.readFileSync(rustMainPath, 'utf8');
 
-      expect(tsSource).toContain("invoke('save_session_token'");
-      expect(tsSource).toContain("invoke<string | null>('get_session_token')");
-      expect(tsSource).toContain("invoke('clear_session_token')");
+      expect(tsSource).toContain('sessionStorage.setItem');
+      expect(tsSource).toContain('sessionStorage.getItem');
+      expect(tsSource).toContain('sessionStorage.removeItem');
       expect(tsSource).not.toMatch(/localStorage\.(setItem|getItem)/);
-      expect(tsSource).not.toMatch(/sessionStorage\.(setItem|getItem)/);
-
-      expect(rustSource).toContain('keyring::Entry');
-      expect(rustSource).toContain('fn save_session_token');
-      expect(rustSource).toContain('fn get_session_token');
-      expect(rustSource).toContain('fn clear_session_token');
+      expect(tsSource).not.toContain('@tauri-apps');
     });
   });
 

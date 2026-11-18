@@ -19,13 +19,13 @@ if (!process.env.DATABASE_ADMIN_URL) {
 
 export const tenantPool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 5,
+  max: 20,
   idleTimeoutMillis: 30000,
 });
 
 export const adminPool = new Pool({
   connectionString: process.env.DATABASE_ADMIN_URL,
-  max: 1,
+  max: 5,
   idleTimeoutMillis: 30000,
 });
 

@@ -332,7 +332,7 @@ export function App() {
       const res = await desktopApiClient.login({
         email,
         password,
-        deviceName: 'tauri-win11-workstation',
+        deviceName: 'web-browser',
       });
       await saveSessionTokenSecure(res.sessionToken);
       setUser(res.user);
@@ -578,7 +578,7 @@ export function App() {
           <div className="brand-badge">AR-PAYROLL · ESTUDIO CONTABLE</div>
           <h2>Ingreso al Sistema de Liquidación y Personal</h2>
           <p className="text-muted">
-            Aplicación de escritorio con PostgreSQL 16 local y resguardo de sesión en Windows Credential Manager.
+            Aplicación web segura con PostgreSQL 16 y sesiones protegidas en el navegador.
           </p>
 
           {error && <div className="alert-error">{error}</div>}
@@ -794,8 +794,7 @@ export function App() {
           <div className="topbar-security">
             <strong style={{ marginRight: '1rem' }}>Hola Cr. {user.fullName}</strong>
             <span className="badge badge-success">
-              🔒 RLS: {rlsInfo?.current_db_user ?? 'app_tenant_user'} · DPAPI
-              Keyring
+              🔒 RLS: {rlsInfo?.current_db_user ?? 'app_tenant_user'} · Sesión web
             </span>
           </div>
         </header>

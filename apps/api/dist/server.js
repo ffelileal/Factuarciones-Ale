@@ -22,7 +22,7 @@ export function buildServer() {
         bodyLimit: 25 * 1024 * 1024, // Soporta subida de archivos Excel y PDF en base64 hasta ~15MB binarios
     });
     app.register(cors, {
-        origin: ['http://localhost:1420', 'http://127.0.0.1:1420', 'tauri://localhost'],
+        origin: process.env.CORS_ORIGIN ?? true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
     });
@@ -63,7 +63,7 @@ export function buildServer() {
         const row = res.rows[0];
         return {
             status: 'ok',
-            engine: 'PostgreSQL 16 Local',
+            engine: 'PostgreSQL 16',
             dbRole: row.current_user,
             bypassRls: row.bypass_rls,
             physicalTables: Number(row.table_count),

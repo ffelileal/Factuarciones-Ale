@@ -51,7 +51,7 @@ export class AuthService {
                 user.user_id,
                 tokenHash,
                 params.ipAddress ?? '127.0.0.1',
-                params.deviceName ?? 'Tauri Desktop Client',
+                params.deviceName ?? 'Web Browser Client',
             ]);
             const sessionRow = sessionRes.rows[0];
             const membershipsRes = await client.query('SELECT * FROM auth_internal.list_user_memberships($1)', [user.user_id]);

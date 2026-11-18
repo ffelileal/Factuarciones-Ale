@@ -3,17 +3,15 @@
 ## Resumen
 
 Aplicación de gestión laboral y liquidación de sueldos para Argentina. La
-arquitectura activa es un monorepo orientado exclusivamente a escritorio con:
+arquitectura activa es un monorepo web con:
 
 - API Fastify + PostgreSQL.
-- PostgreSQL local con FORCE RLS y sesiones propias.
-- Cliente React/Tauri para Windows.
+- PostgreSQL con FORCE RLS y sesiones propias.
+- Cliente React/Vite accesible desde el navegador.
 - Contratos compartidos con Zod.
 
-No hay despliegue web ni conexión a servicios cloud. El flujo activo se
-encuentra en `apps/api`, `apps/desktop`, `packages/contracts` y
-`prisma/migrations`; la API se ejecuta únicamente en `127.0.0.1` para servir al
-cliente Tauri.
+El despliegue web se realiza mediante Vercel. El flujo activo se encuentra en
+`apps/api`, `apps/desktop`, `packages/contracts` y `prisma/migrations`.
 
 ## Cambios realizados
 
@@ -104,7 +102,7 @@ npm run test
 
 - Build de contratos: correcto.
 - Build de API: correcto.
-- Build de escritorio: correcto.
+- Build web: correcto.
 - Login del OWNER contra la base local: `200`.
 - Listado de usuarios autenticado: `200`.
 - Registro público por espacio: `201`.

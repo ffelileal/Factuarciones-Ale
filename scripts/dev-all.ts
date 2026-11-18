@@ -13,7 +13,7 @@ execFileSync(process.execPath, ['--import', 'tsx', path.join(__dirname, 'pg-serv
 
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
-console.log('[AR-Payroll] Iniciando Backend API (http://127.0.0.1:4000) y Cliente Desktop (http://localhost:1420)...');
+console.log('[AR-Payroll] Iniciando Backend API (http://127.0.0.1:4000) y Cliente Web (http://localhost:1420)...');
 
 const apiProc = spawn(npmCmd, ['--workspace=@ar-payroll/api', 'run', 'dev'], {
   cwd: rootDir,

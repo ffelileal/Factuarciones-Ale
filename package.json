@@ -2,14 +2,15 @@
   "name": "ar-payroll-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Aplicación de escritorio para gestión de personal y liquidación de sueldos en Argentina (Tauri 2 + PostgreSQL local)",
+  "description": "Sistema web de gestión de personal y liquidación de sueldos para Argentina",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
     "dev": "npx tsx scripts/dev-all.ts",
-    "desktop": "npx tsx scripts/dev-all.ts",
+    "dev:web": "npm run dev:api",
+    "build:web": "npm run build:contracts && npm run build:api && npm run build:desktop",
     "db:start": "npx tsx scripts/pg-service.ts start",
     "db:stop": "npx tsx scripts/pg-service.ts stop",
     "db:status": "npx tsx scripts/pg-service.ts status",
