@@ -9,13 +9,16 @@ module.exports = async function handler(request, response) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
 
+    let payload;
+    if (chunks.length > 0) {
+      payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    }
+
     const result = await app.inject({
       method: request.method,
       url: '/api/v1/auth/login',
       headers: request.headers,
-      payload: chunks.length > 0
-        ? Buffer.concat(chunks).toString('utf8')
-        : undefined,
+      payload,
     });
 
     response.statusCode = result.statusCode;
