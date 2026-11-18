@@ -1,6 +1,7 @@
 module.exports = async function handler(request, response) {
+  let body;
   try {
-    let body = request.body;
+    body = request.body;
     if (typeof body === 'string' && body.length > 0) {
       body = JSON.parse(body);
     } else if (body === undefined) {
@@ -43,9 +44,16 @@ module.exports = async function handler(request, response) {
       error?.name === 'ZodError' ? 400 : 500;
     response.setHeader('Content-Type', 'application/json');
     response.statusCode = statusCode;
+    const bodyType = typeof body;
+    const bodyLength = typeof body === 'string'
+      ? body.length
+      : body && typeof body === 'object'
+        ? Object.keys(body).length
+        : 0;
     response.end(JSON.stringify({
       error: error?.name ?? 'LoginHandlerError',
       message: error instanceof Error ? error.message : 'No se pudo iniciar el login.',
+      diagnostic: { bodyType, bodyLength },
     }));
   }
 };
