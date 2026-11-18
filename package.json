@@ -5,6 +5,9 @@
   "engines": {
     "node": "22.x"
   },
+  "overrides": {
+    "cookie": "1.0.2"
+  },
   "description": "Sistema web de gestión de personal y liquidación de sueldos para Argentina",
   "workspaces": [
     "packages/*",
