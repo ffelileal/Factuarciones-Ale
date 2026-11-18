@@ -2,6 +2,9 @@
   "name": "ar-payroll-monorepo",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "description": "Sistema web de gestión de personal y liquidación de sueldos para Argentina",
   "workspaces": [
     "packages/*",
