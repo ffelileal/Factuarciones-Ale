@@ -13,7 +13,9 @@ module.exports = async function handler(request, response) {
       method: request.method,
       url: '/api/v1/auth/login',
       headers: request.headers,
-      payload: chunks.length > 0 ? Buffer.concat(chunks) : undefined,
+      payload: chunks.length > 0
+        ? Buffer.concat(chunks).toString('utf8')
+        : undefined,
     });
 
     response.statusCode = result.statusCode;
