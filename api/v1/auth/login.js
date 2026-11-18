@@ -30,9 +30,17 @@ module.exports = async function handler(request, response) {
   } catch (error) {
     response.statusCode = 500;
     response.setHeader('Content-Type', 'application/json');
+    const bodyType = typeof request.body;
+    const bodyLength = typeof request.body === 'string'
+      ? request.body.length
+      : request.body && typeof request.body === 'object'
+        ? Object.keys(request.body).length
+        : 0;
+    const bodyConstructor = request.body?.constructor?.name ?? 'undefined';
     response.end(JSON.stringify({
       error: 'LoginHandlerError',
       message: error instanceof Error ? error.message : 'No se pudo iniciar el login.',
+      diagnostic: { bodyType, bodyLength, bodyConstructor },
     }));
   }
 };
