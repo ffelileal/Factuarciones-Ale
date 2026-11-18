@@ -3,17 +3,17 @@
 ## Resumen
 
 Aplicación de gestión laboral y liquidación de sueldos para Argentina. La
-arquitectura activa es un monorepo con:
+arquitectura activa es un monorepo orientado exclusivamente a escritorio con:
 
 - API Fastify + PostgreSQL.
-- PostgreSQL con FORCE RLS y sesiones propias.
-- Cliente de escritorio React/Tauri.
+- PostgreSQL local con FORCE RLS y sesiones propias.
+- Cliente React/Tauri para Windows.
 - Contratos compartidos con Zod.
-- Supabase como base de datos operativa.
 
-El proyecto conserva archivos históricos de una aplicación Next.js, pero el
-flujo activo se encuentra en `apps/api`, `apps/desktop`, `packages/contracts` y
-`prisma/migrations`.
+No hay despliegue web ni conexión a servicios cloud. El flujo activo se
+encuentra en `apps/api`, `apps/desktop`, `packages/contracts` y
+`prisma/migrations`; la API se ejecuta únicamente en `127.0.0.1` para servir al
+cliente Tauri.
 
 ## Cambios realizados
 
@@ -21,10 +21,7 @@ flujo activo se encuentra en `apps/api`, `apps/desktop`, `packages/contracts` y
 
 - Se creó un usuario maestro con rol `OWNER`.
 - El OWNER puede listar y crear usuarios desde la sección **Usuarios**.
-- Los usuarios nuevos reciben rol `ADMIN` en el espacio de trabajo activo.
-- Se agregó registro público separado por espacio:
-  - `CR. Alejandro Leal` (`estudio-papa`)
-  - `CR. Jorge Lopez` (`estudio-socio`)
+- Los usuarios nuevos reciben rol `ADMIN` en la instalación local.
 - El registro solicita nombre, apellido, usuario y contraseña.
 - El login acepta correo electrónico o nombre de usuario.
 - Las contraseñas se almacenan con scrypt; nunca deben guardarse en el código,
@@ -33,9 +30,7 @@ flujo activo se encuentra en `apps/api`, `apps/desktop`, `packages/contracts` y
 
 ### Aislamiento de información
 
-- Cada usuario tiene membresías por espacio de trabajo.
-- Las consultas usan sesiones firmadas y contexto RLS.
-- Papá y socio no pueden consultar datos del otro espacio.
+- Las consultas usan sesiones firmadas y contexto RLS local.
 - La conexión de ejecución usa el rol `app_tenant_user`, sin `BYPASSRLS`.
 - `DATABASE_ADMIN_URL` se usa únicamente para migraciones administrativas.
 - Las conexiones y secretos se mantienen en `.env`, que no debe versionarse.
@@ -59,7 +54,7 @@ Reglas implementadas:
 
 ### Limpieza de datos
 
-- Se eliminaron los datos operativos de clientes en Supabase:
+- Se eliminaron los datos operativos de clientes de la base local:
   empresas, empleados, vacaciones, liquidaciones, recibos, documentos,
   importaciones y auditoría operativa.
 - Se conservaron usuarios, espacios de trabajo, roles y catálogos globales.
@@ -86,7 +81,7 @@ Migraciones relevantes:
 - `0001_initial_schema`: esquema inicial de 41 tablas.
 - `0002_rls_and_immutability_triggers`: RLS, sesiones y triggers.
 - `0003_vacations_reporting`: índice de vacaciones.
-- `0004_supabase_pgcrypto_schema`: compatibilidad HMAC con Supabase.
+- `0004_supabase_pgcrypto_schema`: compatibilidad HMAC histórica.
 - `0005_managed_users`: usuarios administrables y usernames.
 - `0006_clear_client_data`: limpieza de datos operativos de clientes.
 - `0007_registration_and_workspace_names`: registro por espacio, rol ADMIN,
@@ -110,11 +105,11 @@ npm run test
 - Build de contratos: correcto.
 - Build de API: correcto.
 - Build de escritorio: correcto.
-- Login del OWNER contra Supabase: `200`.
+- Login del OWNER contra la base local: `200`.
 - Listado de usuarios autenticado: `200`.
 - Registro público por espacio: `201`.
 - Verificación de rol de aplicación: `bypass_rls=false`.
-- Datos operativos principales en Supabase: cero registros después de la
+- Datos operativos principales en la base local: cero registros después de la
   limpieza.
 
 ## Archivos principales

@@ -578,7 +578,7 @@ export function App() {
           <div className="brand-badge">AR-PAYROLL · ESTUDIO CONTABLE</div>
           <h2>Ingreso al Sistema de Liquidación y Personal</h2>
           <p className="text-muted">
-            Autenticación multi-tenant con aislamiento PostgreSQL 16 RLS y resguardo de sesión en Windows Credential Manager.
+            Aplicación de escritorio con PostgreSQL 16 local y resguardo de sesión en Windows Credential Manager.
           </p>
 
           {error && <div className="alert-error">{error}</div>}
@@ -753,7 +753,7 @@ export function App() {
                 setSelectedCompanyId(null);
               }}
             >
-              🏢 {activeMembership?.tenantDisplayName ?? 'Espacio de trabajo'}
+              🏢 {activeMembership?.tenantDisplayName ?? 'Instalación local'}
             </span>
             <span className="breadcrumb-sep">→</span>
             <span
@@ -814,7 +814,7 @@ export function App() {
                 <div>
                   <h2>1. Panel Principal del Estudio</h2>
                   <p className="text-muted">
-                    Resumen operativo en tiempo real de su espacio de trabajo aislado (`
+                    Resumen operativo en tiempo real de su instalación local (`
                     {activeMembership?.tenantDisplayName}`).
                   </p>
                 </div>
@@ -1396,7 +1396,7 @@ export function App() {
                 <div>
                   <h2>4. Recibos y Documentación Digital (`documents`)</h2>
                   <p className="text-muted">
-                    Repositorio documental aislado por tenant con verificación criptográfica SHA-256 de archivos PDF, Excel y CSV importados.
+                    Repositorio documental local con verificación criptográfica SHA-256 de archivos PDF, Excel y CSV importados.
                   </p>
                 </div>
                 <button
@@ -1506,7 +1506,7 @@ export function App() {
                 <div>
                   <h2>6. Auditoría y Seguridad Multi-Tenant (`audit_logs`)</h2>
                   <p className="text-muted">
-                    Registro inmutable de todas las altas, ediciones en línea, acciones masivas e importaciones confirmadas dentro del tenant `
+                    Registro inmutable de todas las altas, ediciones en línea, acciones masivas e importaciones confirmadas en la instalación local `
                     {activeTenantId}`.
                   </p>
                 </div>
@@ -1554,7 +1554,7 @@ export function App() {
                 <div>
                   <h2>7. Usuarios del espacio</h2>
                   <p className="text-muted">
-                    Alta de usuarios para <strong>{activeMembership?.tenantDisplayName}</strong>.
+                    Alta de usuarios para la instalación local.
                     El usuario creado podrá iniciar sesión con su nombre de usuario.
                   </p>
                 </div>
@@ -1727,7 +1727,7 @@ export function App() {
             <form onSubmit={(e) => void handleCreateManagedUser(e)}>
               <div className="modal-body">
                 <p className="text-muted">
-                  Se asignará como administrador únicamente al espacio de trabajo activo.
+                  Se asignará como administrador de la instalación local.
                 </p>
                 <div className="form-grid-2">
                   <div className="form-group">

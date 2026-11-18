@@ -1,0 +1,35 @@
+AR-PAYROLL COMO APLICACION DE ESCRITORIO
+
+El proyecto usa Tauri 2 y React. La version de Vercel es solamente la version web.
+
+Requisitos en Windows:
+- Node.js
+- Rust y Cargo: https://rustup.rs/
+- Microsoft WebView2
+
+Comprobar Rust:
+
+rustc --version
+cargo --version
+
+Instalar Tauri CLI desde la raiz del proyecto:
+
+npm install --save-dev @tauri-apps/cli
+
+Ejecutar la aplicacion de escritorio:
+
+npx tauri dev --config apps/desktop/src-tauri/tauri.conf.json
+
+Generar el instalador:
+
+npm run build:desktop
+npx tauri build --config apps/desktop/src-tauri/tauri.conf.json
+
+Los instaladores quedan en:
+
+apps/desktop/src-tauri/target/release/bundle/
+
+Importante:
+La aplicacion busca la API en http://127.0.0.1:4000 por defecto. Para usarla
+en otra computadora, hay que publicar la API en una URL publica y configurar
+VITE_API_BASE_URL antes de generar el instalador.

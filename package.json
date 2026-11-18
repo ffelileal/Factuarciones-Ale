@@ -2,13 +2,14 @@
   "name": "ar-payroll-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Sistema Integral de Gestión de Personal y Liquidación de Sueldos - Argentina (Multi-Tenant + PostgreSQL RLS + Tauri 2)",
+  "description": "Aplicación de escritorio para gestión de personal y liquidación de sueldos en Argentina (Tauri 2 + PostgreSQL local)",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
     "dev": "npx tsx scripts/dev-all.ts",
+    "desktop": "npx tsx scripts/dev-all.ts",
     "db:start": "npx tsx scripts/pg-service.ts start",
     "db:stop": "npx tsx scripts/pg-service.ts stop",
     "db:status": "npx tsx scripts/pg-service.ts status",
