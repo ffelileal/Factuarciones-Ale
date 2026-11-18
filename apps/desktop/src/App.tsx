@@ -145,6 +145,7 @@ export function App() {
 
   // Navigation state
   const [activeSection, setActiveSection] = useState<MainSection>('DASHBOARD');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(
     null
   );
@@ -681,9 +682,25 @@ export function App() {
   );
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout${mobileMenuOpen ? ' mobile-menu-open' : ''}`}>
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          className="mobile-menu-backdrop"
+          aria-label="Cerrar menú"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
       {/* Compact 6-Section Left Sidebar */}
       <aside className="app-sidebar">
+        <button
+          type="button"
+          className="mobile-sidebar-close"
+          aria-label="Cerrar menú"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          ×
+        </button>
         <div className="sidebar-brand">
           <div className="brand-title">AR-PAYROLL</div>
           <div className="brand-subtitle">
@@ -700,6 +717,7 @@ export function App() {
               }`}
               onClick={() => {
                 setActiveSection(sec.id);
+                setMobileMenuOpen(false);
                 if (sec.id !== 'COMPANIES') {
                   setSelectedCompanyId(null);
                 }
@@ -745,6 +763,15 @@ export function App() {
       <div className="app-main">
         {/* Top Header with Breadcrumb Navigation */}
         <header className="app-topbar">
+          <button
+            type="button"
+            className="mobile-menu-button"
+            aria-label="Abrir menú"
+            aria-expanded={mobileMenuOpen}
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            ☰
+          </button>
           <div className="breadcrumb-bar">
             <span
               className="breadcrumb-item clickable"

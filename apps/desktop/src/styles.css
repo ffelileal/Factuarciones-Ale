@@ -58,6 +58,10 @@ body {
   overflow: hidden;
 }
 
+button, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
 h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
 h3 { font-size: 16px; font-weight: 700; }
 h4 { font-size: 14px; font-weight: 700; color: var(--text-main); }
@@ -747,6 +751,331 @@ input[type='checkbox'] { padding: 0; width: 15px; height: 15px; accent-color: va
   cursor: pointer;
 }
 .policy-card.selected { border-color: var(--primary); background: var(--primary-soft); }
+
+/* --------------------------------------------------------------- Responsive */
+.mobile-menu-button,
+.mobile-sidebar-close,
+.mobile-menu-backdrop {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .app-layout {
+    grid-template-columns: 190px 1fr;
+  }
+
+  .form-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dossier-layout {
+    grid-template-columns: 180px 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    overflow: hidden;
+  }
+
+  .app-layout {
+    display: block;
+  }
+
+  .app-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(280px, 84vw);
+    z-index: 70;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-layout.mobile-menu-open .app-sidebar {
+    transform: translateX(0);
+  }
+
+  .mobile-menu-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    border: none;
+    background: rgba(17, 24, 39, 0.48);
+  }
+
+  .mobile-sidebar-close {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    top: 0.65rem;
+    right: 0.65rem;
+    width: 36px;
+    height: 36px;
+    border: 1px solid #374151;
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    font-size: 22px;
+  }
+
+  .sidebar-brand {
+    padding-right: 3.25rem;
+  }
+
+  .sidebar-link {
+    min-height: 44px;
+  }
+
+  .app-main,
+  .app-layout {
+    height: 100dvh;
+  }
+
+  .app-topbar {
+    min-height: 56px;
+    padding: 0 0.75rem;
+  }
+
+  .mobile-menu-button {
+    display: grid;
+    place-items: center;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    color: var(--text-main);
+    font-size: 20px;
+  }
+
+  .breadcrumb-bar {
+    min-width: 0;
+    flex: 1;
+    padding-left: 0.5rem;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .breadcrumb-item {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .breadcrumb-sep,
+  .breadcrumb-item:nth-of-type(n+3) {
+    display: none;
+  }
+
+  .app-content {
+    padding: 0.75rem;
+  }
+
+  .section-container {
+    gap: 0.75rem;
+  }
+
+  .section-header {
+    align-items: flex-start;
+  }
+
+  .section-header h2,
+  .company-header-main h2 {
+    font-size: 18px;
+  }
+
+  .section-header .btn-row,
+  .section-header .btn-row .btn,
+  .panel-title .btn-row,
+  .panel-title .btn-row .btn {
+    width: 100%;
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .kpi-card {
+    min-height: 110px;
+    padding: 0.85rem;
+  }
+
+  .kpi-value {
+    font-size: 24px;
+  }
+
+  .form-grid-2,
+  .form-grid-3,
+  .form-grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  input, select, textarea {
+    min-height: 44px;
+  }
+
+  .btn {
+    min-height: 44px;
+  }
+
+  .btn-sm,
+  .btn-xs {
+    min-height: 40px;
+  }
+
+  .toolbar-left,
+  .toolbar-right,
+  .toolbar-row,
+  .spreadsheet-toolbar,
+  .grid-toolbar,
+  .spreadsheet-footer {
+    width: 100%;
+  }
+
+  .toolbar-row,
+  .spreadsheet-toolbar,
+  .grid-toolbar,
+  .spreadsheet-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .spreadsheet-hint {
+    display: none;
+  }
+
+  .spreadsheet-container,
+  .table-scroll {
+    max-height: calc(100dvh - 210px);
+  }
+
+  .spreadsheet-table {
+    min-width: 720px;
+  }
+
+  .company-header-card {
+    padding: 0.85rem 0.85rem 0;
+  }
+
+  .company-header-main {
+    padding-bottom: 0.75rem;
+  }
+
+  .company-tabs {
+    margin: 0 -0.85rem;
+  }
+
+  .tab-panel {
+    padding: 0.85rem;
+  }
+
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-card,
+  .modal-window,
+  .modal-xl,
+  .modal-sm {
+    max-width: none;
+    max-height: 94dvh;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .modal-header,
+  .modal-footer {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+
+  .modal-footer {
+    flex-wrap: wrap;
+  }
+
+  .modal-footer .btn {
+    flex: 1 1 140px;
+  }
+
+  .dossier-layout {
+    grid-template-columns: 1fr;
+    max-height: 82dvh;
+  }
+
+  .dossier-nav {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .dossier-nav-btn {
+    white-space: nowrap;
+  }
+
+  .dossier-content {
+    padding: 1rem;
+  }
+
+  .wizard-steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .file-dropzone {
+    padding: 1.5rem 1rem;
+  }
+
+  .login-screen {
+    align-items: center;
+    padding: 1rem;
+  }
+
+  .login-card {
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    padding: 1.25rem 1rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .breadcrumb-item:not(:first-of-type) {
+    display: none;
+  }
+
+  .app-content {
+    padding: 0.65rem;
+  }
+
+  .btn-row {
+    width: 100%;
+  }
+
+  .btn-row .btn {
+    flex: 1 1 auto;
+  }
+
+  .pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
 
 /* ----------------------------------------------------------- Impresión */
 @media print {
