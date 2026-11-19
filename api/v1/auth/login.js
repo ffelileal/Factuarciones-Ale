@@ -1,17 +1,15 @@
 module.exports = async function handler(request, response) {
   let body;
+  let rawLength = 0;
   try {
-    body = request.body;
-    if (typeof body === 'string' && body.length > 0) {
-      body = JSON.parse(body);
-    } else if (body === undefined) {
-      const chunks = [];
-      for await (const chunk of request) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      }
-      if (chunks.length > 0) {
-        body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-      }
+    const chunks = [];
+    for await (const chunk of request) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    if (chunks.length > 0) {
+      const rawBody = Buffer.concat(chunks).toString('utf8');
+      rawLength = rawBody.length;
+      body = JSON.parse(rawBody);
     }
     if (!body || typeof body !== 'object') {
       response.statusCode = 400;
@@ -53,7 +51,7 @@ module.exports = async function handler(request, response) {
     response.end(JSON.stringify({
       error: error?.name ?? 'LoginHandlerError',
       message: error instanceof Error ? error.message : 'No se pudo iniciar el login.',
-      diagnostic: { bodyType, bodyLength },
+      diagnostic: { bodyType, bodyLength, rawLength },
     }));
   }
 };
