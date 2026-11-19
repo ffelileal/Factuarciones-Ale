@@ -1,7 +1,5 @@
 module.exports = async function handler(request, response) {
   let body;
-  let rawLength = 0;
-  let rawPrefixHex = '';
   try {
     const chunks = [];
     for await (const chunk of request) {
@@ -9,8 +7,6 @@ module.exports = async function handler(request, response) {
     }
     if (chunks.length > 0) {
       const rawBody = Buffer.concat(chunks).toString('utf8');
-      rawLength = rawBody.length;
-      rawPrefixHex = Buffer.from(rawBody.slice(0, 24), 'utf8').toString('hex');
       body = JSON.parse(rawBody);
     }
     if (!body || typeof body !== 'object') {
@@ -44,16 +40,9 @@ module.exports = async function handler(request, response) {
       error?.name === 'ZodError' ? 400 : 500;
     response.setHeader('Content-Type', 'application/json');
     response.statusCode = statusCode;
-    const bodyType = typeof body;
-    const bodyLength = typeof body === 'string'
-      ? body.length
-      : body && typeof body === 'object'
-        ? Object.keys(body).length
-        : 0;
     response.end(JSON.stringify({
       error: error?.name ?? 'LoginHandlerError',
       message: error instanceof Error ? error.message : 'No se pudo iniciar el login.',
-      diagnostic: { bodyType, bodyLength, rawLength, rawPrefixHex },
     }));
   }
 };
