@@ -17,7 +17,6 @@ module.exports = async function handler(request, response) {
 
     let publicUrl = request.url;
     const url = new URL(publicUrl, 'http://localhost');
-
     if (url.pathname === '/api/v1/employee-profile') {
       const companyId = url.searchParams.get('companyId');
       const employeeId = url.searchParams.get('employeeId');
@@ -36,9 +35,7 @@ module.exports = async function handler(request, response) {
 
     response.statusCode = result.statusCode;
     for (const [name, value] of Object.entries(result.headers)) {
-      if (value !== undefined) {
-        response.setHeader(name, value);
-      }
+      if (value !== undefined) response.setHeader(name, value);
     }
     response.end(result.body);
   } catch (error) {
