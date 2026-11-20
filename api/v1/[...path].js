@@ -15,9 +15,21 @@ module.exports = async function handler(request, response) {
       }
     }
 
+    let publicUrl = request.url;
+    const url = new URL(publicUrl, 'http://localhost');
+
+    if (url.pathname === '/api/v1/employee-profile') {
+      const companyId = url.searchParams.get('companyId');
+      const employeeId = url.searchParams.get('employeeId');
+      publicUrl = `/api/v1/companies/${companyId}/employees/${employeeId}/profile`;
+    } else if (url.pathname === '/api/v1/company-payroll-workspace') {
+      const companyId = url.searchParams.get('companyId');
+      publicUrl = `/api/v1/companies/${companyId}/payrolls-workspace`;
+    }
+
     const result = await app.inject({
       method: request.method,
-      url: request.url,
+      url: publicUrl,
       headers: request.headers,
       payload,
     });
