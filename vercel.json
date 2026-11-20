@@ -5,14 +5,6 @@
   "outputDirectory": "apps/desktop/dist",
   "rewrites": [
     {
-      "source": "/api/v1/companies/:companyId/payrolls-workspace",
-      "destination": "/api/v1/company-payroll-workspace?companyId=:companyId"
-    },
-    {
-      "source": "/api/v1/companies/:companyId/employees/:employeeId/profile",
-      "destination": "/api/v1/employee-profile?companyId=:companyId&employeeId=:employeeId"
-    },
-    {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }
