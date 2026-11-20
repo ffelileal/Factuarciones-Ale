@@ -15,9 +15,13 @@ module.exports = async function handler(request, response) {
       }
     }
 
+    const incomingUrl = new URL(request.url, 'http://localhost');
+    incomingUrl.searchParams.delete('path');
+    incomingUrl.searchParams.delete('0');
+
     const result = await app.inject({
       method: request.method,
-      url: request.url,
+      url: `${incomingUrl.pathname}${incomingUrl.search}`,
       headers: request.headers,
       payload,
     });
