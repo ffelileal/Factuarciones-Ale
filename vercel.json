@@ -5,30 +5,6 @@
   "outputDirectory": "apps/desktop/dist",
   "rewrites": [
     {
-      "source": "/api/v1/companies",
-      "destination": "/api/v1/health?__route=/api/v1/companies"
-    },
-    {
-      "source": "/api/v1/categories",
-      "destination": "/api/v1/health?__route=/api/v1/categories"
-    },
-    {
-      "source": "/api/v1/cbas",
-      "destination": "/api/v1/health?__route=/api/v1/cbas"
-    },
-    {
-      "source": "/api/v1/vacations",
-      "destination": "/api/v1/health?__route=/api/v1/vacations"
-    },
-    {
-      "source": "/api/v1/companies/:companyId/payrolls-workspace",
-      "destination": "/api/v1/health?__route=/api/v1/companies/:companyId/payrolls-workspace"
-    },
-    {
-      "source": "/api/v1/companies/:companyId/employees/:employeeId/profile",
-      "destination": "/api/v1/health?__route=/api/v1/companies/:companyId/employees/:employeeId/profile"
-    },
-    {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }
