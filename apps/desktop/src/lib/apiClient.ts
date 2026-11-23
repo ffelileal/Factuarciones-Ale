@@ -508,7 +508,7 @@ export const desktopApiClient = {
 
   getEmployeeProfile: (companyId: string, employeeId: string) =>
     apiRequest<EmployeeFullDossierResponseDto>(
-      `/api/v1/employee-profile?companyId=${encodeURIComponent(companyId)}&employeeId=${encodeURIComponent(employeeId)}`
+      `/api/v1/companies/${companyId}/employees/${employeeId}/profile`
     ),
 
   addFamilyMember: (
@@ -651,7 +651,7 @@ export const desktopApiClient = {
 
   getPayrollWorkspace: (companyId: string) =>
     apiRequest<CompanyPayrollWorkspaceDto>(
-      `/api/v1/company-payroll-workspace?companyId=${encodeURIComponent(companyId)}`
+      `/api/v1/companies/${companyId}/payrolls-workspace`
     ),
 
   createPayrollPeriod: (
